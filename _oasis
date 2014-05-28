@@ -1,0 +1,55 @@
+OASISFormat: 0.4
+Name:        ml-dae
+Version:     0.1
+Synopsis:    OCaml runtime for modeling & simulation of DAEs
+Authors:     Christoph Höger <christoph.hoeger@tu-berlin.de>
+License:     BSD-3-clause
+Plugins:     META (0.4), StdFiles (0.4), DevFiles (0.4)
+
+# for corebuild compatibility:
+AlphaFeatures:           ocamlbuild_more_args
+XOCamlbuildExtraArgs:    -j 4 -tag thread -tag debug -tag annot -tag bin_annot -tag short_paths
+
+Library dae_output
+  Path:       output
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Modules:    Recon
+  BuildDepends: batteries, msgpack, monad-custom 
+
+Library dae_modeling
+  Path:       modeling
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Modules:    Monads, Unknowns, Equations, Events, Models
+  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output
+
+Library dae_simulation
+  Path:       simulation
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Modules:    Sim, FlatLayout, FlatEvents, FlatDAE
+  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml
+
+Executable bounce
+  Path: examples
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  BuildDepends: dae_modeling, dae_simulation
+  MainIs: bounce.ml
+
+Executable sawtooth
+  Path: examples
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  BuildDepends: dae_modeling, dae_simulation
+  MainIs: sawtooth.ml
+
+Executable sawtooth_variable
+  Path: examples
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  BuildDepends: dae_modeling, dae_simulation
+  MainIs: structChange.ml
+ 
+
