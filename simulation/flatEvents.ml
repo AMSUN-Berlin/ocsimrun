@@ -154,9 +154,12 @@ let rec eval src rel_state = function
 let collect_dependencies deps i rel = 
 
   let rec add_u (algs, ders) = function
-      State j when vlen algs > j -> Printf.printf "Setting %d in %d-vector\n" j (vlen algs) ; (vmod algs j (vadd i), ders)
-    | State(j) as u -> add_u (vadd vempty algs, ders) u
-
+      LowState j when vlen algs > j -> (vmod algs j (vadd i), ders)
+    | LowState(j) as u -> add_u (vadd vempty algs, ders) u
+    | Algebraic(j) as u when vlen algs > j -> (vmod algs j (vadd i), ders)
+    | Algebraic(j) as u -> add_u (vadd vempty algs, ders) u
+    | State(j, _) as u when vlen algs > j -> (vmod algs j (vadd i), ders)
+    | State(j, _) as u -> add_u (vadd vempty algs, ders) u
     | Derivative j when vlen ders > j -> (algs, vmod ders j (vadd i))
     | Derivative(j) as u -> add_u (algs, vadd vempty ders) u
   in
@@ -221,7 +224,9 @@ let rec do_reschedule effs state t =
       (effs, state)
     
 let relations_for_unknown state = function
-    State i -> state.dependencies.on_states.(i)
+    State(i,_) -> state.dependencies.on_states.(i)
+  | Algebraic(i) -> state.dependencies.on_states.(i)
+  | LowState(i) -> state.dependencies.on_states.(i)
   | Derivative i -> state.dependencies.on_derivatives.(i)
 
 

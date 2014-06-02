@@ -1,4 +1,95 @@
 # OASIS_START
-# DO NOT EDIT (digest: d41d8cd98f00b204e9800998ecf8427e)
+# DO NOT EDIT (digest: ea904a84953eed0e4ad7ab6591ef5dcb)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library dae_output
+"output/dae_output.cmxs": use_dae_output
+<output/*.ml{,i}>: pkg_batteries
+<output/*.ml{,i}>: pkg_monad-custom
+<output/*.ml{,i}>: pkg_msgpack
+# Library dae_modeling
+"modeling/dae_modeling.cmxs": use_dae_modeling
+<modeling/*.ml{,i}>: pkg_batteries
+<modeling/*.ml{,i}>: pkg_bigarray
+<modeling/*.ml{,i}>: pkg_e2lang
+<modeling/*.ml{,i}>: pkg_monad-custom
+<modeling/*.ml{,i}>: pkg_msgpack
+<modeling/*.ml{,i}>: use_dae_output
+# Library dae_simulation
+"simulation/dae_simulation.cmxs": use_dae_simulation
+<simulation/*.ml{,i}>: pkg_batteries
+<simulation/*.ml{,i}>: pkg_bigarray
+<simulation/*.ml{,i}>: pkg_e2lang
+<simulation/*.ml{,i}>: pkg_monad-custom
+<simulation/*.ml{,i}>: pkg_msgpack
+<simulation/*.ml{,i}>: pkg_pa_comprehension
+<simulation/*.ml{,i}>: pkg_sundials_ml
+<simulation/*.ml{,i}>: use_dae_modeling
+<simulation/*.ml{,i}>: use_dae_output
+# Executable bounce
+<examples/bounce.{native,byte}>: pkg_batteries
+<examples/bounce.{native,byte}>: pkg_bigarray
+<examples/bounce.{native,byte}>: pkg_e2lang
+<examples/bounce.{native,byte}>: pkg_monad-custom
+<examples/bounce.{native,byte}>: pkg_msgpack
+<examples/bounce.{native,byte}>: pkg_pa_comprehension
+<examples/bounce.{native,byte}>: pkg_sundials_ml
+<examples/bounce.{native,byte}>: use_dae_modeling
+<examples/bounce.{native,byte}>: use_dae_output
+<examples/bounce.{native,byte}>: use_dae_simulation
+# Executable bounce_alg
+<examples/bounceAlg.{native,byte}>: pkg_batteries
+<examples/bounceAlg.{native,byte}>: pkg_bigarray
+<examples/bounceAlg.{native,byte}>: pkg_e2lang
+<examples/bounceAlg.{native,byte}>: pkg_monad-custom
+<examples/bounceAlg.{native,byte}>: pkg_msgpack
+<examples/bounceAlg.{native,byte}>: pkg_pa_comprehension
+<examples/bounceAlg.{native,byte}>: pkg_sundials_ml
+<examples/bounceAlg.{native,byte}>: use_dae_modeling
+<examples/bounceAlg.{native,byte}>: use_dae_output
+<examples/bounceAlg.{native,byte}>: use_dae_simulation
+# Executable sawtooth
+<examples/sawtooth.{native,byte}>: pkg_batteries
+<examples/sawtooth.{native,byte}>: pkg_bigarray
+<examples/sawtooth.{native,byte}>: pkg_e2lang
+<examples/sawtooth.{native,byte}>: pkg_monad-custom
+<examples/sawtooth.{native,byte}>: pkg_msgpack
+<examples/sawtooth.{native,byte}>: pkg_pa_comprehension
+<examples/sawtooth.{native,byte}>: pkg_sundials_ml
+<examples/sawtooth.{native,byte}>: use_dae_modeling
+<examples/sawtooth.{native,byte}>: use_dae_output
+<examples/sawtooth.{native,byte}>: use_dae_simulation
+# Executable sawtooth_variable
+<examples/structChange.{native,byte}>: pkg_batteries
+<examples/structChange.{native,byte}>: pkg_bigarray
+<examples/structChange.{native,byte}>: pkg_e2lang
+<examples/structChange.{native,byte}>: pkg_monad-custom
+<examples/structChange.{native,byte}>: pkg_msgpack
+<examples/structChange.{native,byte}>: pkg_pa_comprehension
+<examples/structChange.{native,byte}>: pkg_sundials_ml
+<examples/structChange.{native,byte}>: use_dae_modeling
+<examples/structChange.{native,byte}>: use_dae_output
+<examples/structChange.{native,byte}>: use_dae_simulation
+<examples/*.ml{,i}>: pkg_batteries
+<examples/*.ml{,i}>: pkg_bigarray
+<examples/*.ml{,i}>: pkg_e2lang
+<examples/*.ml{,i}>: pkg_monad-custom
+<examples/*.ml{,i}>: pkg_msgpack
+<examples/*.ml{,i}>: pkg_pa_comprehension
+<examples/*.ml{,i}>: pkg_sundials_ml
+<examples/*.ml{,i}>: use_dae_modeling
+<examples/*.ml{,i}>: use_dae_output
+<examples/*.ml{,i}>: use_dae_simulation
 # OASIS_STOP
 <**/*.ml>: pkg_batteries, syntax_camlp4o, pkg_batteries.syntax

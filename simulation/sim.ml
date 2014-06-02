@@ -119,6 +119,13 @@ module SundialsImpl = struct
     (* Call IDACreate and IDAMalloc to initialize solution *)
     let ida = ida_create () in
 
+    let set_id = function
+	Algebraic i -> id.{i} <- 0.
+      | LowState i -> id.{i} <- 1.
+      | State(i, _) -> id.{i} <- 1.
+      | Derivative _ -> () in
+
+    Enum.iter set_id (flat_variables flatDAE.layout);
     check_flag "IDASetId" (ida_set_id ida id) ;
     
     let event_dim = Array.length (relations event_state) in
@@ -172,7 +179,10 @@ module SundialsImpl = struct
 				      check_flag "IDASolve" ret ;
 				    
 				      let (e_state', reinit_needed) = event_loop_start e_state ret step.tret in
-				      if reinit_needed then check_flag "IDAReInit" (ida_reinit ida step.tret ida_ctxt) ;
+				      if reinit_needed then ( 
+					check_flag "IDAReInit" (ida_reinit ida step.tret ida_ctxt) ; 
+					check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init exp.start)  					
+				      ) ;
 				    
 				      update_mem e_state' eval_eq ;
 				      sim_loop e_state' { step with tout = step.tret +. minstep } )

@@ -38,7 +38,7 @@ open Batteries
 open Events
 
 (** Distinguish between a yy or yp entry *)
-type flat_unknown = State of int | Derivative of int
+type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
 module IntMap = Map.Make(Int)
 
@@ -69,6 +69,7 @@ let layout us eqs =
   let hd = highest_der us eqs in
 
   let reserve_unknown {u_idx;u_der} (count, equals, m) = 
+    Printf.printf "Flattening <%d;%d>, count is: %d\n" u_idx u_der count ;
     if UnknownMap.mem {u_idx;u_der} m then 
       (count, equals, m) 
     else
@@ -78,16 +79,27 @@ let layout us eqs =
          and all states from der=1 to max-1 equal the corresponding
          derivative
        *)
-      let add_alg (equals, m) u_der = 
+      let add_state (equals, m) u_der = 
 	let yy_index = count + u_der in
-	let yp_index = count + u_der - 1 in	
-	( (if u_der > 0 then {yy_index;yp_index}::equals else equals), 
-	  UnknownMap.add {u_idx; u_der} (State(yy_index)) m)
+	let yp_index = count + u_der - 1 in
+	let flat_var = if u_der > 0 then State(yy_index, yp_index) else LowState(yy_index) in
+	let equals' = if u_der > 0 then {yy_index;yp_index}::equals else equals in 
+	(equals' , UnknownMap.add {u_idx; u_der} flat_var m)
       in
 
-      let (equals', states) = Enum.fold add_alg (equals, m) (0--^der) in
-      (* der=max is the only value from the derivative vector *)
-      (count + (Int.max 1 (der - 1)), equals', UnknownMap.add {u_idx; u_der=der} (Derivative (count + der - 1)) states)
+      let (equals', states) = if der > 0 then 
+				Enum.fold add_state (equals, m) (0--^der) 
+			      else (
+				Printf.printf "<%d;%d> --> Algebraic %d\n" u_idx u_der count ;
+				(equals, UnknownMap.add {u_idx;u_der} (Algebraic(count)) m) ) in
+
+      (* when max > 0, then der=max is the only value from the derivative vector *)
+      let states' = if der > 0 then UnknownMap.add {u_idx; u_der=der} (Derivative (count + der - 1)) states 
+		    else states in
+      
+      let count' = count + (Int.max 1 der) in
+
+      (count', equals', states')
   in
 
   (* simply fill from 0 to length *)
@@ -104,6 +116,10 @@ let layout us eqs =
 
 type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 
+let flat_variables layout = [? var | var <- UnknownMap.values layout.of_unknown ?]
+
+let algebraics layout = [? index | Algebraic(index) <- UnknownMap.values layout.of_unknown ?]
+
 let flatten_unknown layout u = UnknownMap.find u layout.of_unknown
 
 let flatten_equation layout = function
@@ -113,11 +129,15 @@ let depends = function
     Flat_Linear (us, _, _) -> us
 
 let update_fu yy yp value = function
-  | State i -> yy.{i} <- value
+  | Algebraic i -> yy.{i} <- value
+  | State (yy_index, yp_index) -> yy.{yy_index} <- value ; yp.{yp_index} <- value 
+  | LowState i -> yy.{i} <- value
   | Derivative i -> yp.{i} <- value
 
 let compute_fu yy yp = function
-  | State i -> yy.{i}
+  | Algebraic i -> yy.{i}
+  | LowState i -> yy.{i}
+  | State (i, _) -> yy.{i}
   | Derivative i -> yp.{i}
 
 let compute_feq yy yp = function
@@ -136,11 +156,12 @@ let residual equalities eqs yy yp res =
   done ;
 
   let offset = Array.length eqs + 1 in
-  let equality r {yy_index; yp_index} = res.{r+offset} <- yy.{yy_index} -. yp.{yp_index} in
+  let equality r {yy_index; yp_index} = 
+    res.{r+offset} <- yy.{yy_index} -. yp.{yp_index} in
 
   Array.iteri equality equalities ;
       
-  (*Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
+  (* Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
   Printf.printf "yp: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp)) ;
-  Printf.printf "residual: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res));*)
+  Printf.printf "residual: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res)); *)
   0

@@ -29,7 +29,7 @@ Library dae_simulation
   CompiledObject: best
   BuildTools: ocamlbuild
   Modules:    Sim, FlatLayout, FlatEvents, FlatDAE
-  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml
+  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension
 
 Executable bounce
   Path: examples
@@ -37,6 +37,13 @@ Executable bounce
   BuildTools: ocamlbuild
   BuildDepends: dae_modeling, dae_simulation
   MainIs: bounce.ml
+
+Executable bounce_alg
+  Path: examples
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  BuildDepends: dae_modeling, dae_simulation
+  MainIs: bounceAlg.ml
 
 Executable sawtooth
   Path: examples
