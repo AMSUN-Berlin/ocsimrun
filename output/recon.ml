@@ -49,6 +49,8 @@ let write_header o signals =
   
   nwrite o wall_header ;
   BigEndian.write_i32 o length ;
+
+  Printf.printf "Writing header\n%!" ;
   nwrite o bytes ; 
 
   length

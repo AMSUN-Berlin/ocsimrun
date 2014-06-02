@@ -76,12 +76,16 @@ end
 open Sim
 
 let () = 
+  Printf.printf "Bouncing ball example\n%!" ;
   let outfile = File.open_out "results.wall" in
+  Printf.printf "Open\n%!" ;
   
   ignore (write_header outfile ["time"; "h"; "h/dt"; "h/dt^2" ]) ;
+  Printf.printf "Header done\n%!" ;
   
   let model = instantiate (bounce_ball outfile) (new bounce_state) in
-    
+  
+  Printf.printf "Starting sim\n%!" ;  
   (match SundialsImpl.simulate model { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } with
      Success -> Printf.printf "# Success!\n"
    | Error (n, msg) -> Printf.printf "# Error %d: %s\n" n msg );

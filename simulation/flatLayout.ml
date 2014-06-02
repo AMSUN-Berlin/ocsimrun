@@ -69,7 +69,7 @@ let layout us eqs =
   let hd = highest_der us eqs in
 
   let reserve_unknown {u_idx;u_der} (count, equals, m) = 
-    Printf.printf "Flattening <%d;%d>, count is: %d\n" u_idx u_der count ;
+    Printf.printf "Flattening <%d;%d>, count is: %d\n%!" u_idx u_der count ;
     if UnknownMap.mem {u_idx;u_der} m then 
       (count, equals, m) 
     else
@@ -112,6 +112,7 @@ let layout us eqs =
   let equalities=Array.of_list equals in
   let dimension = 1 + IntMap.cardinal of_equation + Array.length equalities in
 
+  Printf.printf "Flat layout created\n%!" ;
   { dimension ; of_unknown ; of_equation ; equalities }
 
 type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
@@ -152,16 +153,19 @@ let residual equalities eqs yy yp res =
   res.{0} <- yp.{0} -. 1. ;
 
   for i = 1 to Array.length eqs do
+    (* Printf.printf "res[%d] <- %f\n" i (compute_feq eqs.(i-1)) ; *)
     res.{i} <- compute_feq eqs.(i-1)			  
   done ;
 
   let offset = Array.length eqs + 1 in
   let equality r {yy_index; yp_index} = 
+    (* Printf.printf "yy[%d] = yp[%d]\n" yy_index yp_index ; *)
     res.{r+offset} <- yy.{yy_index} -. yp.{yp_index} in
 
   Array.iteri equality equalities ;
-      
-  (* Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
+  
+  (*
+  Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
   Printf.printf "yp: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp)) ;
-  Printf.printf "residual: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res)); *)
+  Printf.printf "residual: %s\n%!" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res));  *)
   0

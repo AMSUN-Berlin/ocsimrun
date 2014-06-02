@@ -61,4 +61,5 @@ let flatten_model us eqs evs =
   
   let flat_event_state = init layout evs in
 
+  Printf.printf "Created flat DAE\n%!" ;
   {yy_vec ; yp_vec ; layout ; flat_equations ; flat_event_state  }

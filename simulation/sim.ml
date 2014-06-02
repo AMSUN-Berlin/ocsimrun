@@ -64,7 +64,7 @@ module SundialsImpl = struct
     and evs = List.of_enum (IntMap.values m.events)
     and eqs = m.equations in
     
-    Printf.printf "# Simulating %d equations and %d unknowns\n" (Enum.count (IntMap.enum eqs)) (Enum.count (UnknownSet.enum us)) ;
+    Printf.printf "# Simulating %d equations and %d unknowns\n%!" (Enum.count (IntMap.enum eqs)) (Enum.count (UnknownSet.enum us)) ;
 
     let flatDAE = flatten_model us eqs evs in
     let dim = flatDAE.layout.dimension in
@@ -118,14 +118,18 @@ module SundialsImpl = struct
 
     (* Call IDACreate and IDAMalloc to initialize solution *)
     let ida = ida_create () in
+    
+    let set_eq_id {yy_index;yp_index} = id.{yp_index} <- 1. in
+    let set_id = function 
+      | Algebraic _ | LowState _ | State(_,_) -> ()
+      | Derivative i -> id.{i} <- 1. in     
+    let set_uk_id f_eq = Array.iter set_id (depends f_eq) in
 
-    let set_id = function
-	Algebraic i -> id.{i} <- 0.
-      | LowState i -> id.{i} <- 1.
-      | State(i, _) -> id.{i} <- 1.
-      | Derivative _ -> () in
+    id.{0} <- 1. ; 
+    Array.iter set_eq_id flatDAE.layout.equalities ;
+    Array.iter set_uk_id flatDAE.flat_equations ;
 
-    Enum.iter set_id (flat_variables flatDAE.layout);
+    Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) ;
     check_flag "IDASetId" (ida_set_id ida id) ;
     
     let event_dim = Array.length (relations event_state) in
@@ -133,7 +137,7 @@ module SundialsImpl = struct
     let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
   
     let ida_ctxt = { residual = residual ; state = num_state ; event_roots ; event_state = ida_event_state } in
-
+    
     check_flag "IDAInit" (ida_init ida ida_ctxt) ;
 
     check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
@@ -141,7 +145,10 @@ module SundialsImpl = struct
     check_flag "IDADense" (ida_dense ida dim) ;
  
     (* Call IDACalcIC to correct the initial values. *)
-    check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init exp.start) ;
+    let minstep = exp.stop /. 500. in
+
+    Printf.printf "Initialization...\n%!";
+    check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (exp.start +. minstep)) ;
 
     let rootsfound = Array.create event_dim 0 in
 
@@ -171,23 +178,27 @@ module SundialsImpl = struct
       in (e_state', event_loop e_state' gs')
     in
 
-    let minstep = exp.stop /. 500. in
 
     (* Loop over output times, call IDASolve. *)
     let rec sim_loop e_state step = if step.tret < exp.stop then (
+				      let start_time = Unix.gettimeofday () in 
+				      let old = step.tret in
 				      let ret = ida_solve ida step ida_normal in
+				      let diff = Unix.gettimeofday () -. start_time in
+				      let sim_diff = step.tret -. old in
+				      Printf.printf "Realtime factor: %f\n" (sim_diff /. diff) ;
 				      check_flag "IDASolve" ret ;
 				    
 				      let (e_state', reinit_needed) = event_loop_start e_state ret step.tret in
 				      if reinit_needed then ( 
 					check_flag "IDAReInit" (ida_reinit ida step.tret ida_ctxt) ; 
-					check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init exp.start)  					
+					check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (step.tret +. minstep))  					
 				      ) ;
 				    
 				      update_mem e_state' eval_eq ;
 				      sim_loop e_state' { step with tout = step.tret +. minstep } )
     in
-    Printf.printf "# Starting sim-loop...\n" ;
+    Printf.printf "# Starting sim-loop...\n%!" ;
     let step = { tout = minstep ; tret = exp.start } in
     sim_loop event_state step ;
     
