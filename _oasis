@@ -31,12 +31,19 @@ Library dae_simulation
   Modules:    Sim, FlatLayout, FlatEvents, FlatDAE
   BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension
 
+Library dae_examples
+  Path: examples
+  CompiledObject: best
+  BuildTools: ocamlbuild
+  Modules: Bounce
+  BuildDepends: dae_modeling, batteries
+
 Executable bounce
   Path: examples
   CompiledObject: best
   BuildTools: ocamlbuild
-  BuildDepends: dae_modeling, dae_simulation
-  MainIs: bounce.ml
+  BuildDepends: dae_modeling, dae_simulation, dae_examples
+  MainIs: bounce_recon.ml
 
 Executable bounce_alg
   Path: examples

@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ea904a84953eed0e4ad7ab6591ef5dcb)
+# DO NOT EDIT (digest: ded1879e5baf1ccf9ff5b4bb8ce7ea37)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -37,17 +37,21 @@
 <simulation/*.ml{,i}>: pkg_sundials_ml
 <simulation/*.ml{,i}>: use_dae_modeling
 <simulation/*.ml{,i}>: use_dae_output
+# Library dae_examples
+"examples/dae_examples.cmxs": use_dae_examples
 # Executable bounce
-<examples/bounce.{native,byte}>: pkg_batteries
-<examples/bounce.{native,byte}>: pkg_bigarray
-<examples/bounce.{native,byte}>: pkg_e2lang
-<examples/bounce.{native,byte}>: pkg_monad-custom
-<examples/bounce.{native,byte}>: pkg_msgpack
-<examples/bounce.{native,byte}>: pkg_pa_comprehension
-<examples/bounce.{native,byte}>: pkg_sundials_ml
-<examples/bounce.{native,byte}>: use_dae_modeling
-<examples/bounce.{native,byte}>: use_dae_output
-<examples/bounce.{native,byte}>: use_dae_simulation
+<examples/bounce_recon.{native,byte}>: pkg_batteries
+<examples/bounce_recon.{native,byte}>: pkg_bigarray
+<examples/bounce_recon.{native,byte}>: pkg_e2lang
+<examples/bounce_recon.{native,byte}>: pkg_monad-custom
+<examples/bounce_recon.{native,byte}>: pkg_msgpack
+<examples/bounce_recon.{native,byte}>: pkg_pa_comprehension
+<examples/bounce_recon.{native,byte}>: pkg_sundials_ml
+<examples/bounce_recon.{native,byte}>: use_dae_examples
+<examples/bounce_recon.{native,byte}>: use_dae_modeling
+<examples/bounce_recon.{native,byte}>: use_dae_output
+<examples/bounce_recon.{native,byte}>: use_dae_simulation
+<examples/*.ml{,i}>: use_dae_examples
 # Executable bounce_alg
 <examples/bounceAlg.{native,byte}>: pkg_batteries
 <examples/bounceAlg.{native,byte}>: pkg_bigarray
