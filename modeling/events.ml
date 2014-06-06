@@ -26,13 +26,15 @@
  *
  *)
 
+open Async.Std
+
 open Equations
 open Unknowns
 open Batteries
 
 type sample_record = { 
   next_t : float;
-  schedule : (unknown -> float) -> float option ;
+  schedule : (unknown -> float) -> sample_record option Deferred.t ;
 }
 
 type relation_record = {
@@ -50,7 +52,7 @@ let continuous relation sign = Relation { relation; sign }
 
 let start_signal = Sample {
   next_t = Float.neg_infinity ;
-  schedule = fun _ -> None
+  schedule = fun _ -> Deferred.return None
 }
 
 type deletion = { del_unknowns : ISet.t ; del_eqns : ISet.t ; del_events : ISet.t }

@@ -21,8 +21,8 @@ Library dae_modeling
   Path:       modeling
   CompiledObject: best
   BuildTools: ocamlbuild
-  Modules:    Monads, Unknowns, Equations, Events, Models
-  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output
+  Modules:    Monads, Unknowns, Equations, Events, Models, Visualisation
+  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, async
 
 Library dae_simulation
   Path:       simulation
@@ -42,7 +42,7 @@ Executable bounce
   Path: examples
   CompiledObject: best
   BuildTools: ocamlbuild
-  BuildDepends: dae_modeling, dae_simulation, dae_examples
+  BuildDepends: dae_simulation
   MainIs: bounce_recon.ml
 
 Executable bounce_alg

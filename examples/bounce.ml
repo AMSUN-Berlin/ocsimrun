@@ -36,6 +36,9 @@ open Events.Monadic
 
 open Monads.ObjectStateMonad
 
+open Visualisation 
+open Visualisation.Monadic
+
 let bounce_ball s = ( 
   perform (
       h <-- new_unknown ;

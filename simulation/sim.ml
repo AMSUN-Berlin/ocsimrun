@@ -54,6 +54,8 @@ module SundialsImpl = struct
   open FlatLayout
   open FlatEvents
   open FlatDAE
+
+  open Async.Std
 		
   module IntMap = Map.Make(Int)
 
@@ -87,7 +89,7 @@ module SundialsImpl = struct
     (* first, set all unknowns to 0 *)
     let pre_event_state = flatDAE.flat_event_state in
 
-    let (start_effects, event_state) = reschedule pre_event_state exp.start [] in
+    let (start_effects, event_state, _) = reschedule pre_event_state exp.start [] in
 
     (* handle all pre-init events *)
     let handle_start_effect = function Unknown(u, v) -> update_fu yy yp v (flatten_unknown flatDAE.layout u) | _ -> () in
@@ -169,47 +171,38 @@ module SundialsImpl = struct
 			       ) else
 				 gs
       in
-      let (gs', e_state') = reschedule e_state t
-				       ( if ret = ida_root_return then (
-					   check_flag "IDAGetRootInfo" (ida_get_root_info ida rootsfound) ;
-					   Array.fold_lefti handle_root [] rootsfound	 	 
-					 ) else []
+      let (gs', e_state', samples) = reschedule e_state t
+						( if ret = ida_root_return then (
+						    check_flag "IDAGetRootInfo" (ida_get_root_info ida rootsfound) ;
+						    Array.fold_lefti handle_root [] rootsfound	 	 
+						  ) else []
 				       )
-      in (e_state', event_loop e_state' gs')
+      in (e_state', event_loop e_state' gs', samples)
     in
-
 
     (* Loop over output times, call IDASolve. *)
     let rec sim_loop e_state step = if step.tret < exp.stop then (
-				      let start_time = Unix.gettimeofday () in 
-				      let old = step.tret in
 				      let ret = ida_solve ida step ida_normal in
-				      let diff = Unix.gettimeofday () -. start_time in
-				      let sim_diff = step.tret -. old in
-				      Printf.printf "Realtime factor: %f\n" (sim_diff /. diff) ;
 				      check_flag "IDASolve" ret ;
+				      Printf.printf "Sim-time: %f\n%!" step.tret;
 				    
-				      let (e_state', reinit_needed) = event_loop_start e_state ret step.tret in
+				      let (e_state', reinit_needed, samples) = event_loop_start e_state ret step.tret in
 				      if reinit_needed then ( 
 					check_flag "IDAReInit" (ida_reinit ida step.tret ida_ctxt) ; 
 					check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (step.tret +. minstep))  					
 				      ) ;
 				    
 				      update_mem e_state' eval_eq ;
-				      sim_loop e_state' { step with tout = step.tret +. minstep } )
+				      
+				      (next_state e_state' eval_unknown samples) >>= fun e_state'' -> sim_loop e_state'' { step with tout = step.tret +. minstep } 
+				    ) else (
+				      Printf.printf "Done at time: %f\n%!" step.tret;
+				      Deferred.return Success
+				    )
     in
+
     Printf.printf "# Starting sim-loop...\n%!" ;
     let step = { tout = minstep ; tret = exp.start } in
-    sim_loop event_state step ;
-    
-    (* Print remaining counters *)
-    let netf = ref 0 in
-    check_flag "IDAGetNumErrTestFails" (ida_get_num_err_test_fails ida netf);
-    
-    let ncfn = ref 0 in
-    check_flag "IDAGetNumNonlinSolvConvFails" (ida_get_num_nonlin_solv_conv_fails ida ncfn);
-    (Printf.printf "# netf = %d, ncfn = %d \n" (!netf) (!ncfn));
-
-    Success
+    sim_loop event_state step 
 
 end

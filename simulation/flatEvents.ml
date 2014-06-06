@@ -214,14 +214,14 @@ let next_step state = if (SampleQueue.size state.queue = 0) then None else Some 
 let fire_sample state effs i = let src = SigSmp(i) in
 				 Array.fold_left (collect state src) effs state.flat_events
 
-let rec do_reschedule effs state t =
-  if (SampleQueue.size state.queue = 0) then (effs, state) else
+let rec do_reschedule effs state samples t =
+  if (SampleQueue.size state.queue = 0) then (effs, state, samples) else
     let s = (SampleQueue.find_min state.queue) in
     if s.time <= t then (
       let effs' = fire_sample state effs s.sample in
-      do_reschedule effs' {state with queue = SampleQueue.del_min state.queue} t
+      do_reschedule effs' {state with queue = SampleQueue.del_min state.queue} (s::samples) t
     ) else 
-      (effs, state)
+      (effs, state, samples)
     
 let relations_for_unknown state = function
     State(i,_) -> state.dependencies.on_states.(i)
@@ -232,9 +232,9 @@ let relations_for_unknown state = function
 
 let reschedule state t gs = if (SampleQueue.size state.queue = 0) then 
 			      (* when our queue is _empty_ we need to fire a dummy event to get the EVER effects *)
-				(* TODO: introduce real dummy source *)
-				(fire_sample state gs (-1), state) 
-			      else do_reschedule gs state t
+			      (* TODO: introduce real dummy source *)
+			      (fire_sample state gs (-1), state, []) 
+			    else do_reschedule gs state [] t
 
 let relations state = state.relations
   
@@ -242,3 +242,13 @@ let do_update state f i r = let v = (Float.signbit (f r.flat_relation)) && (r.fl
 			    BitSet.put state.memory v i
 
 let update_mem state f = Array.iteri (do_update state f) state.relations
+
+open Async.Std
+
+let next_state state f samples = 
+  let enqueue_sample queue point = (state.samples.(point.sample).schedule f) >>=
+				     (* we evaluate the samples on demand and update the corresponding point *)
+				     function Some sample' -> state.samples.(point.sample) <- sample' ; queue >>| SampleQueue.add {point with time = sample'.next_t} 
+					    | None -> queue in
+  
+  (List.fold_left enqueue_sample (Deferred.return state.queue) samples) >>| fun queue -> {state with queue=queue}

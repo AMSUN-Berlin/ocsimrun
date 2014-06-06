@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: ded1879e5baf1ccf9ff5b4bb8ce7ea37)
+# DO NOT EDIT (digest: 0c83d556d8ff1bb455fd285992494244)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -20,6 +20,7 @@
 <output/*.ml{,i}>: pkg_msgpack
 # Library dae_modeling
 "modeling/dae_modeling.cmxs": use_dae_modeling
+<modeling/*.ml{,i}>: pkg_async
 <modeling/*.ml{,i}>: pkg_batteries
 <modeling/*.ml{,i}>: pkg_bigarray
 <modeling/*.ml{,i}>: pkg_e2lang
@@ -28,6 +29,7 @@
 <modeling/*.ml{,i}>: use_dae_output
 # Library dae_simulation
 "simulation/dae_simulation.cmxs": use_dae_simulation
+<simulation/*.ml{,i}>: pkg_async
 <simulation/*.ml{,i}>: pkg_batteries
 <simulation/*.ml{,i}>: pkg_bigarray
 <simulation/*.ml{,i}>: pkg_e2lang
@@ -40,6 +42,7 @@
 # Library dae_examples
 "examples/dae_examples.cmxs": use_dae_examples
 # Executable bounce
+<examples/bounce_recon.{native,byte}>: pkg_async
 <examples/bounce_recon.{native,byte}>: pkg_batteries
 <examples/bounce_recon.{native,byte}>: pkg_bigarray
 <examples/bounce_recon.{native,byte}>: pkg_e2lang
@@ -53,6 +56,7 @@
 <examples/bounce_recon.{native,byte}>: use_dae_simulation
 <examples/*.ml{,i}>: use_dae_examples
 # Executable bounce_alg
+<examples/bounceAlg.{native,byte}>: pkg_async
 <examples/bounceAlg.{native,byte}>: pkg_batteries
 <examples/bounceAlg.{native,byte}>: pkg_bigarray
 <examples/bounceAlg.{native,byte}>: pkg_e2lang
@@ -64,6 +68,7 @@
 <examples/bounceAlg.{native,byte}>: use_dae_output
 <examples/bounceAlg.{native,byte}>: use_dae_simulation
 # Executable sawtooth
+<examples/sawtooth.{native,byte}>: pkg_async
 <examples/sawtooth.{native,byte}>: pkg_batteries
 <examples/sawtooth.{native,byte}>: pkg_bigarray
 <examples/sawtooth.{native,byte}>: pkg_e2lang
@@ -75,6 +80,7 @@
 <examples/sawtooth.{native,byte}>: use_dae_output
 <examples/sawtooth.{native,byte}>: use_dae_simulation
 # Executable sawtooth_variable
+<examples/structChange.{native,byte}>: pkg_async
 <examples/structChange.{native,byte}>: pkg_batteries
 <examples/structChange.{native,byte}>: pkg_bigarray
 <examples/structChange.{native,byte}>: pkg_e2lang
@@ -85,6 +91,7 @@
 <examples/structChange.{native,byte}>: use_dae_modeling
 <examples/structChange.{native,byte}>: use_dae_output
 <examples/structChange.{native,byte}>: use_dae_simulation
+<examples/*.ml{,i}>: pkg_async
 <examples/*.ml{,i}>: pkg_batteries
 <examples/*.ml{,i}>: pkg_bigarray
 <examples/*.ml{,i}>: pkg_e2lang
