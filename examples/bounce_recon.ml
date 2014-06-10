@@ -31,61 +31,42 @@ open Async.Std
 open Core.Std
 
 open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
 open Events
 open Events.Monadic
 
+open Bounce
+open Recon
+open Models
+open Sim
 open Monads.ObjectStateMonad
 
-open Models
-open Recon
-
-let sawtooth out s = ( 
-  perform (
-      x <-- new_unknown ;
-      _ <-- add_equation ( Linear ( [| der(x) |], [| 1. |], 1. ) ) ;
-
-      let x_start = {
-	signal = start_signal ;
-	effects = fun _ -> [Unknown (x, 1.) ] ;
-      } in
-
-      let x_observe = {
-	signal = EveryStep ;
-	effects = fun f -> let _ = write_entry out [ f time ; f x ; ] in [Nothing]
-      } in
-      
-      _ <-- add_event x_start ;
-      _ <-- add_event x_observe ;
-
-      let reinit = {
-	signal = continuous (Linear([| x |], [| 1. |], 0.)) (-1) ;
-	effects = fun _ -> [Unknown (x, 1.)]
-      } in
-      
-      _ <-- add_event reinit ;
-
-      return (object method x = x end)
-)) s
-
-open Sim
-
-class sawtooth_state = object (self : 'a)
-  inherit Unknowns.Monadic.state_container 
-  inherit Equations.Monadic.state_container
-  inherit ['a] Events.Monadic.state_container
-end
-
+(** bouncing ball with recon output *)
 let () = 
+  Printf.printf "Bouncing ball example\n%!" ;
   let outfile = File.open_out "results.wall" in
   
-  write_header outfile ["time"; "x" ] ;
+  ignore (write_header outfile ["time"; "h"; "h/dt"; "h/dt^2" ]) ;
+  
+  let start_time = Unix.gettimeofday() in
 
-  let mode = instantiate (sawtooth outfile) (new sawtooth_state) in
+  (* add the observation event *)
+  let root s = ( 
+    perform (
+	ball <-- bounce_ball ;
 
-  let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
-  let _ = sim >>| (fun res -> (IO.close_out outfile) ; res) >>| function Success -> Printf.printf "shutdown\n" ; Shutdown.shutdown 0 
-								  | Error _ -> Printf.printf "error\n" ; Shutdown.shutdown 1 in
-  never_returns (Scheduler.go ())
+	let observe = {
+	  signal = EveryStep ;
+	  effects = fun f -> let _ = write_entry outfile [ f time ; f ball#h ; f (der ball#h) ; f (der (der ball#h)) ] 
+			     in [Nothing]
+	} in
+	
+	_ <-- add_event observe ;	
+
+	return ball
+  )) s in
+
+  let mode = instantiate root (new bounce_state) in
+    
+ let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
+ let _ = sim >>| function Success -> Printf.printf "shutdown\n" ; Shutdown.shutdown 0 | Error _ -> Printf.printf "error\n" ; Shutdown.shutdown 1 in
+ never_returns (Printf.printf "go!%!\n" ; Scheduler.go ())
