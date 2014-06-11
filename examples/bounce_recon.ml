@@ -27,8 +27,6 @@
  *)
 
 open Batteries
-open Async.Std
-open Core.Std
 
 open Unknowns
 open Events
@@ -68,5 +66,5 @@ let () =
   let mode = instantiate root (new bounce_state) in
     
  let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
- let _ = sim >>| function Success -> Printf.printf "shutdown\n" ; Shutdown.shutdown 0 | Error _ -> Printf.printf "error\n" ; Shutdown.shutdown 1 in
- never_returns (Printf.printf "go!%!\n" ; Scheduler.go ())
+
+ ignore (Lwt_main.run sim)

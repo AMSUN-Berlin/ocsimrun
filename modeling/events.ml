@@ -26,7 +26,7 @@
  *
  *)
 
-open Async.Std
+open Lwt
 
 open Equations
 open Unknowns
@@ -34,7 +34,7 @@ open Batteries
 
 type sample_record = { 
   next_t : float;
-  schedule : (unknown -> float) -> sample_record option Deferred.t ;
+  schedule : (unknown -> float) -> sample_record option Lwt.t ;
 }
 
 type relation_record = {
@@ -52,18 +52,12 @@ let continuous relation sign = Relation { relation; sign }
 
 let start_signal = Sample {
   next_t = Float.neg_infinity ;
-  schedule = fun _ -> Deferred.return None
+  schedule = fun _ -> Lwt.return None
 }
 
-type deletion = { del_unknowns : ISet.t ; del_eqns : ISet.t ; del_events : ISet.t }
-
-and 'r addition = { add_unknowns : UnknownSet.t ; 
-		    add_equations : equation list ; 
-		    add_events : ('r event) list }
-
-and 'r effect = Equation of int * equation
+type 'r effect = Equation of int * equation
 	      | Unknown of unknown * float
-	      | Model of ('r -> 'r * (deletion * 'r addition))
+	      | Model of ('r -> 'r * unit) (* model change wraps an object monad of same type *)
 	      | Nothing (* TODO: remove this and just use empty list ? *)
 
 and 'r effect_gen = (unknown -> float) -> ('r effect) list

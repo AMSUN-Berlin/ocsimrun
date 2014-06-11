@@ -8,7 +8,7 @@ Plugins:     META (0.4), StdFiles (0.4), DevFiles (0.4)
 
 # for corebuild compatibility:
 AlphaFeatures:           ocamlbuild_more_args
-XOCamlbuildExtraArgs:    -j 4 -tag thread -tag debug -tag annot -tag bin_annot -tag short_paths
+XOCamlbuildExtraArgs:    -j 4 -tag thread -tag annot -tag bin_annot -tag short_paths
 
 Library dae_output
   Path:       output
@@ -22,7 +22,7 @@ Library dae_modeling
   CompiledObject: best
   BuildTools: ocamlbuild
   Modules:    Monads, Unknowns, Equations, Events, Models, Visualisation
-  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, async
+  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, lwt.unix
 
 Library dae_simulation
   Path:       simulation

@@ -55,9 +55,9 @@ module SundialsImpl = struct
   open FlatEvents
   open FlatDAE
 
-  open Async.Std
-		
   module IntMap = Map.Make(Int)
+
+  open Lwt
 
   let last arr = arr.((Array.length arr) - 1)
 		    	     
@@ -197,7 +197,7 @@ module SundialsImpl = struct
 				      (next_state e_state' eval_unknown samples) >>= fun e_state'' -> sim_loop e_state'' { step with tout = step.tret +. minstep } 
 				    ) else (
 				      Printf.printf "Done at time: %f\n%!" step.tret;
-				      Deferred.return Success
+				      Lwt.return Success
 				    )
     in
 

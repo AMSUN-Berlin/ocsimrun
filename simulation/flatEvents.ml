@@ -243,12 +243,12 @@ let do_update state f i r = let v = (Float.signbit (f r.flat_relation)) && (r.fl
 
 let update_mem state f = Array.iteri (do_update state f) state.relations
 
-open Async.Std
+open Lwt
 
 let next_state state f samples = 
   let enqueue_sample queue point = (state.samples.(point.sample).schedule f) >>=
 				     (* we evaluate the samples on demand and update the corresponding point *)
-				     function Some sample' -> state.samples.(point.sample) <- sample' ; queue >>| SampleQueue.add {point with time = sample'.next_t} 
+				     function Some sample' -> state.samples.(point.sample) <- sample' ; queue >|= SampleQueue.add {point with time = sample'.next_t} 
 					    | None -> queue in
   
-  (List.fold_left enqueue_sample (Deferred.return state.queue) samples) >>| fun queue -> {state with queue=queue}
+  (List.fold_left enqueue_sample (return state.queue) samples) >|= fun queue -> {state with queue=queue}

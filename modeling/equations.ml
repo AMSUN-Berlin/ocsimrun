@@ -34,6 +34,8 @@ type equation = Equality of unknown * unknown  (** equality constraint, i.e. x =
 	      | Linear of (unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 	      | General of (unknown array) * (stmt array)  (** general, non-linear equation *)
 
+let constant f = Linear([||], [||], f)
+
 let depends = function Equality(u1, u2)  -> UnknownSet.add u1 (UnknownSet.singleton u2)
 		     | Linear(us, _, _) -> Array.fold_right UnknownSet.add us UnknownSet.empty
 		     | General(us, _) -> Array.fold_right UnknownSet.add us UnknownSet.empty

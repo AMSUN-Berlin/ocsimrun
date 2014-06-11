@@ -58,6 +58,9 @@ let bounce_ball s = (
       
       _ <-- add_event bounce ;
 
+      ball3d <-- sphere 1. 32 ;
+      _ <-- add_transform ball3d {change=Move(constant 0., constant 0., Linear ([|h|], [|1.|], 0.)); at=Always} ;
+
       return (object method h = h end)
 )) s
 
@@ -65,6 +68,7 @@ class bounce_state = object (self : 'a)
   inherit Unknowns.Monadic.state_container 
   inherit Equations.Monadic.state_container
   inherit ['a] Events.Monadic.state_container
+  inherit Visualisation.Monadic.state_container
 end
 
 
