@@ -64,4 +64,15 @@ module Monadic = struct
 			       return n
 			 )) s
 
+  let del_equation e s = ( perform (
+			       (n, es) <-- get field ;
+			       put field (n, IntMap.remove e es) ;
+			       return ()
+			 )) s
+
+  let get_equation i s = ( perform (
+			       (n, es) <-- get field ;
+			       return (IntMap.find i es) ;
+			 ) ) s
+
 end
