@@ -35,7 +35,7 @@ Library dae_examples
   Path: examples
   CompiledObject: best
   BuildTools: ocamlbuild
-  Modules: Bounce
+  Modules: Bounce, Flows, Potentials, Electrical 
   BuildDepends: dae_modeling, batteries
 
 Executable bounce
