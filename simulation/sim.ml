@@ -194,7 +194,14 @@ module SundialsImpl = struct
 				    
 				      update_mem e_state' eval_eq ;
 				      
-				      (next_state e_state' eval_unknown samples) >>= fun e_state'' -> sim_loop e_state'' { step with tout = step.tret +. minstep } 
+				      (next_state e_state' eval_unknown samples) >>= 
+
+					fun e_state'' -> sim_loop e_state'' { 
+								    step with tout = match next_step e_state'' with 
+										       Some t -> Float.min t (step.tret +. minstep)
+										     | None -> step.tret +. minstep 
+								  }
+ 
 				    ) else (
 				      Printf.printf "Done at time: %f\n%!" step.tret;
 				      Lwt.return Success

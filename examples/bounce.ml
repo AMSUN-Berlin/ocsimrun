@@ -39,9 +39,14 @@ open Monads.ObjectStateMonad
 open Visualisation 
 open Visualisation.Monadic
 
+open Observer
+
 let bounce_ball s = ( 
   perform (
       h <-- new_unknown ;
+
+      observe_as (der (der h)) "h";
+
       _ <-- add_equation ( Linear ( [| der(der(h)) |], [| 1. |], 9.81 ) ) ;
 
       let h_start = {
@@ -69,6 +74,7 @@ class bounce_state = object (self : 'a)
   inherit Equations.Monadic.state_container
   inherit ['a] Events.Monadic.state_container
   inherit Visualisation.Monadic.state_container
+  inherit Observer.state_container
 end
 
 

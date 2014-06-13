@@ -63,8 +63,5 @@ let () =
 	return ball
   )) s in
 
-  let mode = instantiate root (new bounce_state) in
-    
- let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
-
- ignore (Lwt_main.run sim)
+  Controlled.run_sim root (new bounce_state) { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. }
+ 

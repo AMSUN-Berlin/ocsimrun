@@ -28,8 +28,8 @@ Library dae_simulation
   Path:       simulation
   CompiledObject: best
   BuildTools: ocamlbuild
-  Modules:    Sim, FlatLayout, FlatEvents, FlatDAE
-  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension
+  Modules:    Sim, FlatLayout, FlatEvents, FlatDAE, Controlled, Commands_j, Commands_t
+  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension, lwt.syntax, atdgen
 
 Library dae_examples
   Path: examples
