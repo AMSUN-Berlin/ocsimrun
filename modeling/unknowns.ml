@@ -34,7 +34,7 @@ type unknown = {
 }
 
 (** derivation simply counts up the derivation index *)
-let der u = {u with u_der = u.u_der + 1}
+let _der u = {u with u_der = u.u_der + 1}
 
 let compare u1 u2 = BatOrd.comp0 (BatOrd.bin_ord Int.ord u1.u_idx u2.u_idx Int.ord u1.u_der u2.u_der)
 
@@ -71,5 +71,20 @@ module Monadic = struct
 	put field (n+1, UnknownSet.add u us) ;
 	return u
   )) s
+
+  let rec fill u us = if UnknownSet.mem u us then us else
+			fill {u with u_der = u.u_der - 1} (UnknownSet.add u us)
+
+  let der u s = (
+    perform (
+	(n, us) <-- get field ;
+	let du = _der u in
+	if UnknownSet.mem du us then return du else (
+	  perform (
+	      _ <-- put field (n, fill du us) ;
+	      return du 
+	    )
+	)
+    )) s
 
 end
