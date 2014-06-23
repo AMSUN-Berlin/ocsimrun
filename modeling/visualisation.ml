@@ -27,8 +27,7 @@
  *)
 
 open Batteries
-open Unknowns
-open Equations
+open Core
 
 type geometry = Box of float * float * float 
 	      | Sphere of float * int

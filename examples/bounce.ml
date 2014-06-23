@@ -27,13 +27,7 @@
  *)
 
 open Batteries
-open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
-open Events
-open Events.Monadic
-
+open Core
 open Monads.ObjectStateMonad
 
 open Visualisation 
@@ -44,10 +38,10 @@ open Observer
 let bounce_ball s = ( 
   perform (
       h <-- new_unknown ;
+      v <-- der h ;
+      dv <-- der v;
 
-      observe_as (der (der h)) "h";
-
-      _ <-- add_equation ( Linear ( [| der(der(h)) |], [| 1. |], 9.81 ) ) ;
+      _ <-- add_equation ( Linear ( [| dv |], [| 1. |], 9.81 ) ) ;
 
       let h_start = {
 	signal = start_signal ;
@@ -58,7 +52,7 @@ let bounce_ball s = (
 
       let bounce = {
 	signal = continuous (Linear([| h |], [| 1. |], 0.)) (-1) ;
-	effects = fun values -> [Unknown ((der h), -0.7 *. (values (der h)))]
+	effects = fun values -> [Unknown ((v), -0.7 *. (values (v)))]
       } in
       
       _ <-- add_event bounce ;

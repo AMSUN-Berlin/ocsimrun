@@ -55,7 +55,6 @@ type layout = {
   equalities : equality array ;
 }
 
-
 let highest_der us eqs = 
   let collect {u_idx; u_der} max = IntMap.modify u_idx (Int.max u_der) max in
 

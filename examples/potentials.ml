@@ -27,18 +27,13 @@
  *)
 
 open Batteries
-open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
-
+open Core
 open Monads.ObjectStateMonad
 
 open Observer
 
-module IntSet = Set.Make(Int)
 
-type potential_sets = (IntSet.t * UnknownSet.t) UnknownMap.t
+type potential_sets = (EqSet.t * UnknownSet.t) UnknownMap.t
 
 class potential_container = object
   val _potentials : potential_sets = UnknownMap.empty ;
@@ -57,20 +52,20 @@ let merge_potentials (eqs1, eq_set1) (eqs2, eq_set2) =
 			 let u1 = UnknownSet.min_elt eq_set1 in
 			 let u2 = UnknownSet.min_elt eq_set2 in
 			 eq <-- add_equation (Equality(u1, u2)) ;
-			 return (IntSet.add eq (IntSet.union eqs1 eqs2), UnknownSet.union eq_set1 eq_set2) 
+			 return (EqSet.add eq (EqSet.union eqs1 eqs2), UnknownSet.union eq_set1 eq_set2) 
 		   ) ) s
 				   
 
 let add_to_potential (eqs, eq_set) u s = 
   ( perform (	
 	eq <-- add_equation (Equality(u, UnknownSet.min_elt eq_set)) ;
-	return (IntSet.add eq eqs, UnknownSet.add u eq_set)
+	return (EqSet.add eq eqs, UnknownSet.add u eq_set)
   )) s
 
 let make_potential p_u n_u s = 
   ( perform (
 	eq <-- add_equation (Equality(p_u, n_u)) ;
-	return (IntSet.singleton eq, UnknownSet.add p_u (UnknownSet.singleton n_u))
+	return (EqSet.singleton eq, UnknownSet.add p_u (UnknownSet.singleton n_u))
   )) s
 
 let connect_potential p_u n_u s =

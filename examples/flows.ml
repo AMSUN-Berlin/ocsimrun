@@ -27,19 +27,12 @@
  *)
 
 open Batteries
-open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
-
+open Core
 open Monads.ObjectStateMonad
 
 open Observer
 
-module IntSet = Set.Make(Int)
-
-
-type flow_sets = int UnknownMap.t
+type flow_sets = equation_handle UnknownMap.t
 
 class flow_container = object 
   val _flows : flow_sets = UnknownMap.empty ;
@@ -50,8 +43,8 @@ end
 let flows = { field_get = (fun a -> (a#get_flows : flow_sets)) ; field_set = fun a b -> a#set_flows b }
 
 let merge_sums s1 s2 s = ( perform (
-			       eq1 <-- get_equation s1 ;
-			       eq2 <-- get_equation s2 ;
+			       Some eq1 <-- get_equation s1 ;
+			       Some eq2 <-- get_equation s2 ;
 
 			       del_equation s1 ;
 			       del_equation s2 ;
@@ -62,7 +55,7 @@ let merge_sums s1 s2 s = ( perform (
 			 )) s
 
 let add_to_sum sum u s = ( perform (
-			       eq1 <-- get_equation sum ;
+			       Some eq1 <-- get_equation sum ;
 			       _ <-- del_equation sum ;
 
 			       let us = Array.of_enum (UnknownSet.enum (UnknownSet.add u (depends eq1))) in

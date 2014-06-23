@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 7f96ea5dc7511755317ceec89d8bac10)
+# DO NOT EDIT (digest: 3e5776b7ecd3a196acc8365b4629b5eb)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -22,6 +22,7 @@
 "modeling/dae_modeling.cmxs": use_dae_modeling
 <modeling/*.ml{,i}>: pkg_batteries
 <modeling/*.ml{,i}>: pkg_bigarray
+<modeling/*.ml{,i}>: pkg_daestruct
 <modeling/*.ml{,i}>: pkg_e2lang
 <modeling/*.ml{,i}>: pkg_lwt.unix
 <modeling/*.ml{,i}>: pkg_monad-custom
@@ -32,6 +33,7 @@
 <simulation/*.ml{,i}>: pkg_atdgen
 <simulation/*.ml{,i}>: pkg_batteries
 <simulation/*.ml{,i}>: pkg_bigarray
+<simulation/*.ml{,i}>: pkg_daestruct
 <simulation/*.ml{,i}>: pkg_e2lang
 <simulation/*.ml{,i}>: pkg_lwt.syntax
 <simulation/*.ml{,i}>: pkg_lwt.unix
@@ -47,6 +49,7 @@
 <examples/bounce_recon.{native,byte}>: pkg_atdgen
 <examples/bounce_recon.{native,byte}>: pkg_batteries
 <examples/bounce_recon.{native,byte}>: pkg_bigarray
+<examples/bounce_recon.{native,byte}>: pkg_daestruct
 <examples/bounce_recon.{native,byte}>: pkg_e2lang
 <examples/bounce_recon.{native,byte}>: pkg_lwt.syntax
 <examples/bounce_recon.{native,byte}>: pkg_lwt.unix
@@ -61,6 +64,7 @@
 <examples/bounceAlg.{native,byte}>: pkg_atdgen
 <examples/bounceAlg.{native,byte}>: pkg_batteries
 <examples/bounceAlg.{native,byte}>: pkg_bigarray
+<examples/bounceAlg.{native,byte}>: pkg_daestruct
 <examples/bounceAlg.{native,byte}>: pkg_e2lang
 <examples/bounceAlg.{native,byte}>: pkg_lwt.syntax
 <examples/bounceAlg.{native,byte}>: pkg_lwt.unix
@@ -75,6 +79,7 @@
 <examples/sawtooth.{native,byte}>: pkg_atdgen
 <examples/sawtooth.{native,byte}>: pkg_batteries
 <examples/sawtooth.{native,byte}>: pkg_bigarray
+<examples/sawtooth.{native,byte}>: pkg_daestruct
 <examples/sawtooth.{native,byte}>: pkg_e2lang
 <examples/sawtooth.{native,byte}>: pkg_lwt.syntax
 <examples/sawtooth.{native,byte}>: pkg_lwt.unix
@@ -89,6 +94,7 @@
 <examples/structChange.{native,byte}>: pkg_atdgen
 <examples/structChange.{native,byte}>: pkg_batteries
 <examples/structChange.{native,byte}>: pkg_bigarray
+<examples/structChange.{native,byte}>: pkg_daestruct
 <examples/structChange.{native,byte}>: pkg_e2lang
 <examples/structChange.{native,byte}>: pkg_lwt.syntax
 <examples/structChange.{native,byte}>: pkg_lwt.unix
@@ -102,6 +108,7 @@
 <examples/*.ml{,i}>: pkg_atdgen
 <examples/*.ml{,i}>: pkg_batteries
 <examples/*.ml{,i}>: pkg_bigarray
+<examples/*.ml{,i}>: pkg_daestruct
 <examples/*.ml{,i}>: pkg_e2lang
 <examples/*.ml{,i}>: pkg_lwt.syntax
 <examples/*.ml{,i}>: pkg_lwt.unix

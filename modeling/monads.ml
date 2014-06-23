@@ -45,27 +45,28 @@ module type STATE =
 module type STATE_MONAD = 
    functor(State : STATE) ->
      sig
-       include MONAD
+       (* we want our state monad implementation to be visible (and thus compatible) *)
+       include MONAD with type 'a t = State.t -> (State.t * 'a)
        val access : 'a t -> 'a
        val put : State.t -> unit t
        val get : State.t t
      end
 
-module MakeStateMonad : STATE_MONAD =
+module MakeStateMonad =
    functor(State : STATE) ->
      struct
        type state = State.t
-       type 'a t = state -> ('a * state)
+       type 'a t = state -> (state * 'a)
        let bind m f =
          fun s ->
            match m s with 
-              | (x, s') -> f x s'
-       let return a = fun s -> (a, s)
+              | (s', x) -> f x s'
+       let return a = fun s -> (s, a)
        let access m =
            match m (State.empty () ) with
-             | (x, s) -> x
+             | (s, x) -> x
        let put s =
-           fun _ -> ((), s)
+           fun _ -> (s, ())
        let get =
            fun s -> (s, s)
      end
@@ -73,9 +74,15 @@ module MakeStateMonad : STATE_MONAD =
 (** ObjectStateMonad for composable State Monads *)
 module ObjectStateMonad =
   struct
+    open Lens
+
     (* A state monad yields tuple of a state-object and an observable value *)
     type ('a, 'b) monad = 'a -> ('a * 'b)
-				       
+	
+    let using le m s = let (s', a) = (m (le.get s)) in
+		       let s'' = le.set s' s in
+		       (s'', a)
+			       
     (* usual bind, just more type parameters *)
     let bind : (('a, 'b) monad) -> ('b -> ('a, 'c) monad) -> ('a, 'c) monad = 
       fun m -> 
@@ -87,18 +94,16 @@ module ObjectStateMonad =
     (* run, as usual *)
     let run m a = m(a)
 
-    type ('a, 'b) field = { field_get : 'a -> 'b ; field_set : 'a -> 'b -> 'a }
-
     (* get does not directly expose the state but requires a "getter" *)
-    let get f = 
-      let m : 'a -> ('a * 'b) = fun s -> (s, f.field_get s)
+    let get le = 
+      let m : 'a -> ('a * 'b) = fun s -> (s, le.get s)
       in m
 
     (* put requires a "setter" function to modify the state *)
     let put f = 
       fun b ->
       let m : 'a -> ('a * unit) = fun s -> 
-	let s2 : 'a = (f.field_set s b) in (s2, ()) 
+	let s2 : 'a = (f.set b s) in (s2, ()) 
       in m
 	   
     let yield a = fun s -> (s, a)
