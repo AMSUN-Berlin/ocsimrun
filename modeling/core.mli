@@ -27,7 +27,10 @@
  *)
 open E2lang
 
-type unknown
+type unknown = {
+  u_idx : int; 
+  u_der : int;
+}
 
 type equation_handle
 
@@ -64,15 +67,21 @@ type ('r, 'a) core_monad = (<get_core : 'r core_state_t; set_core : 'r core_stat
 
 val new_unknown : ('r, unknown) core_monad
 
+val all_unknowns : ('r, unknown BatEnum.t) core_monad
+
 val der : unknown -> ('r, unknown) core_monad
 
 val der_order : unknown -> ('r, int option) core_monad
 
 val unknown_index : unknown -> ('r, int) core_monad
 
+val unknown_mark : ('r, int) core_monad
+
 type equation = Equality of unknown * unknown  (** equality constraint, i.e. x = y *)
 	      | Linear of (unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 	      | General of (unknown array) * (stmt array)  (** general, non-linear equation *)
+
+val current_dimension : ('r, int) core_monad
 
 val add_equation : equation -> ('r, equation_handle) core_monad
 
@@ -81,6 +90,8 @@ val get_equation : equation_handle -> ('r, equation option) core_monad
 val del_equation : equation_handle -> ('r, unit) core_monad
 
 val equation_index : equation_handle -> ('r, int) core_monad
+
+val equation_mark : ('r, int) core_monad
 
 val constant : float -> equation
 

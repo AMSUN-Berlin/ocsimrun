@@ -149,15 +149,21 @@ module Unknowns = struct
 
   let unknowns = { get = (fun a -> a.unknowns) ; set = fun b a -> {a with unknowns = b} }
 
-  let new_unknown = perform
-      {unknown_count ; unknown_set} <-- get ;
-      let u = {u_idx = unknown_count; u_der = 0} in
-      _ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set } ;
-      return u 
+  let new_unknown = perform (
+			{unknown_count ; unknown_set} <-- get ;
+			let u = {u_idx = unknown_count; u_der = 0} in
+			_ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set } ;
+			return u 
+		      )
+
+  let all_unknowns = perform (
+			 {unknown_count ; unknown_set } <-- get ;
+			 return (UnknownSet.enum unknown_set)
+		       )
 		      
   let del_unknown u = perform
       {unknown_count ; unknown_set} <-- get ;
-      _ <-- put { unknown_count ; unknown_set = UnknownSet.add u unknown_set } ;
+      _ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set } ;
       return ()
 
   let unknown_index u = perform (
@@ -180,6 +186,10 @@ module Unknowns = struct
       | (l, _, _) when UnknownSet.is_empty l -> return None
       | (l, _, _) when (UnknownSet.max_elt l).u_idx <> u.u_idx -> return None
       | (l, _, _) -> return ( Some (UnknownSet.max_elt l).u_der )
+
+  let mark = perform 
+	       { unknown_count ; unknown_set} <-- get ;
+	     return unknown_count
 end
 
 let unknowns = { get = (fun a -> a.unknowns) ; set = fun a b -> {b with unknowns = a} }
@@ -198,6 +208,11 @@ module CoreRelation =
 						    
 	   open StateMonad
 	   
+	   let cardinality = perform (
+				 {count;store} <-- get ;
+				 return (IntMap.cardinal store)
+			       )
+	   
 	   let add e = perform (
 			   {count;store} <-- get ;
 			   _ <-- put {count = count + 1; store = IntMap.add count e store} ;
@@ -206,7 +221,7 @@ module CoreRelation =
 
 	   let del e = perform (
 			   s <-- get ;
-			   _ <-- put {s with store = IntMap.remove e s.store} ;
+			   _ <-- put {store = IntMap.remove e s.store ; count = s.count + 1} ;
 			   return ()
 			 )
 
@@ -217,10 +232,15 @@ module CoreRelation =
 				| (_, None, _) -> raise (Failure (Printf.sprintf "The handle %d is not element of the current model." e))
 			      )
 
-	   let get e = perform (
-			   s <-- get ;			   
-			   return (IntMap.Exceptionless.find e s.store)
-			 )
+	   let mark = perform (
+			  s <-- get ;
+			  return s.count ;
+			)
+
+	   let get_el e = perform (
+			      s <-- get ;			   
+			      return (IntMap.Exceptionless.find e s.store)
+			    )
 
 	 end
 
@@ -267,11 +287,17 @@ open Lens.Infix
 
 let new_unknown s = (using (core |-- unknowns) Unknowns.new_unknown) s
 
+let all_unknowns s = (using (core |-- unknowns) Unknowns.all_unknowns) s
+
 let unknown_index u = using (core |-- unknowns) (Unknowns.unknown_index u)
+
+let unknown_mark s = using (core |-- unknowns) Unknowns.mark s
 
 let der_order u = using (core |-- unknowns) (Unknowns.der_order u)
 
 let der u = using (core |-- unknowns) (Unknowns.der u)
+
+let current_dimension s = using ( core |-- equations ) Equations.cardinality s
 
 let add_equation e = using ( core |-- equations ) (Equations.add e)
 
@@ -279,7 +305,9 @@ let del_equation h = using ( core |-- equations ) (Equations.del h)
 
 let equation_index h = using ( core |-- equations ) (Equations.index_of h)
 
-let get_equation h = using ( core |-- equations ) (Equations.get h)
+let equation_mark s = using (core |-- equations) Equations.mark s
+
+let get_equation h = using ( core |-- equations ) (Equations.get_el h)
 
 let add_relation e = using ( core |-- relations ) (Relations.add e)
 
@@ -287,7 +315,7 @@ let del_relation h = using ( core |-- relations ) (Relations.del h)
 
 let relation_index h = using ( core |-- relations ) (Relations.index_of h)
 
-let get_relation h = using ( core |-- relations ) (Relations.get h)
+let get_relation h = using ( core |-- relations ) (Relations.get_el h)
 
 let add_clock e = using ( core |-- clocks ) (Clocks.add e)
 
@@ -295,5 +323,5 @@ let del_clock h = using ( core |-- clocks ) (Clocks.del h)
 
 let clock_index h = using ( core |-- clocks ) (Clocks.index_of h)
 
-let get_clock h = using ( core |-- clocks ) (Clocks.get h)
+let get_clock h = using ( core |-- clocks ) (Clocks.get_el h)
 

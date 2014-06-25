@@ -27,17 +27,10 @@
  *)
 
 open Batteries
-
-open Unknowns
-open Equations
-open Events
+open Core
 open FlatLayout
 
-type flat_relation_record = {
-  flat_relation : flat_equation;
-  flat_sign : int; 
-}
-
+(*
 type sample_point = {
   time : float ; sample : int
 }
@@ -252,3 +245,4 @@ let next_state state f samples =
 					    | None -> queue in
   
   (List.fold_left enqueue_sample (return state.queue) samples) >|= fun queue -> {state with queue=queue}
+ *)

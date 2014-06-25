@@ -43,13 +43,13 @@ module type STATE =
   end
 
 module type STATE_MONAD = 
-   functor(State : STATE) ->
      sig
+       type state
        (* we want our state monad implementation to be visible (and thus compatible) *)
-       include MONAD with type 'a t = State.t -> (State.t * 'a)
+       include MONAD with type 'a t = state -> (state * 'a)
        val access : 'a t -> 'a
-       val put : State.t -> unit t
-       val get : State.t t
+       val put : state -> unit t
+       val get : state t
      end
 
 module MakeStateMonad =
@@ -113,6 +113,10 @@ module ObjectStateMonad =
     let rec repeat m = function
       | 0 -> m
       | n -> bind m (fun _ -> repeat m (n - 1))		  
+
+    let fold_enum f v xs = 
+      let comb a b = bind a (f b) in
+      Enum.fold comb (return v) xs
 
   end
 

@@ -30,109 +30,61 @@
 This module provides a "flattening" of unknowns, events and equations 
 into a form suitable for order-1 DAE solvers (i.e. it reduces any system
 to an implicit order-1 DAE).
-*)
+ *)
 
-open Unknowns
-open Equations
-open Batteries
-open Events
+
+open Core
+open Bigarray
+
+type fvector = (float, float64_elt, c_layout) Array1.t
+
+type layout = {
+  dimension : int;
+  compute_res : fvector -> fvector -> fvector -> int;
+  compute_unk : unknown -> fvector -> fvector -> float;
+  compute_eq : equation -> fvector -> fvector -> float;
+  u_mark : int;
+  e_mark : int;
+}
+
+open Monads.ObjectStateMonad
+
+let is_valid layout = perform (
+			  u_mark <-- unknown_mark ;
+			  e_mark <-- equation_mark ;
+			  return (u_mark = layout.u_mark && e_mark = layout.e_mark)
+			)
 
 (** Distinguish between a yy or yp entry *)
 type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
-module IntMap = Map.Make(Int)
+let rec fill_states u hd (dn, sn, fm) = function 
+  (* only the 0-derivative is a plain flat state *)
+  | 0 -> fill_states u hd (dn, sn+1, UnknownMap.add {u_idx=u; u_der=0} (LowState sn) fm) 1
+		     
+  (* only the highest derivative is a plain flat derivative *) 
+  | n when n = hd -> (dn+1, sn, UnknownMap.add {u_idx=u; u_der=n} (Derivative dn) fm)		       
 
-(* structural equality between an order-1 derivative and state variable *)
-type equality = {
-  yy_index : int ;
-  yp_index : int ;
-}
+  (* everything else is both *)
+  | n -> (fill_states u hd (dn+1, sn+1, (UnknownMap.add {u_idx=u; u_der=n} (State(dn, sn)) fm) ) (n+1))
 
-type layout = {
-  dimension : int;
-  of_unknown : flat_unknown UnknownMap.t;
-  of_equation : int IntMap.t;
-  equalities : equality array ;
-}
-
-let highest_der us eqs = 
-  let collect {u_idx; u_der} max = IntMap.modify u_idx (Int.max u_der) max in
-
-  let min_der = IntMap.of_enum (Enum.map (fun {u_idx;u_der} -> (u_idx, 0)) (UnknownSet.enum us)) in
-
-  let from_equation i _ max = UnknownSet.fold collect (depends (IntMap.find i eqs)) max in
-
-  IntMap.fold from_equation eqs (IntMap.add 0 1 min_der)
-
-let layout us eqs = 
-  let hd = highest_der us eqs in
-
-  let reserve_unknown {u_idx;u_der} (count, equals, m) = 
-    Printf.printf "Flattening <%d;%d>, count is: %d\n%!" u_idx u_der count ;
-    if UnknownMap.mem {u_idx;u_der} m then 
-      (count, equals, m) 
-    else
-      let der = IntMap.find u_idx hd in
-
-      (* add all unknowns from der=0 to max-1 to the state vector 
-         and all states from der=1 to max-1 equal the corresponding
-         derivative
-       *)
-      let add_state (equals, m) u_der = 
-	let yy_index = count + u_der in
-	let yp_index = count + u_der - 1 in
-	let flat_var = if u_der > 0 then State(yy_index, yp_index) else LowState(yy_index) in
-	let equals' = if u_der > 0 then {yy_index;yp_index}::equals else equals in 
-	(equals' , UnknownMap.add {u_idx; u_der} flat_var m)
-      in
-
-      let (equals', states) = if der > 0 then 
-				Enum.fold add_state (equals, m) (0--^der) 
-			      else (
-				Printf.printf "<%d;%d> --> Algebraic %d\n" u_idx u_der count ;
-				(equals, UnknownMap.add {u_idx;u_der} (Algebraic(count)) m) ) in
-
-      (* when max > 0, then der=max is the only value from the derivative vector *)
-      let states' = if der > 0 then UnknownMap.add {u_idx; u_der=der} (Derivative (count + der - 1)) states 
-		    else states in
-      
-      let count' = count + (Int.max 1 der) in
-
-      (count', equals', states')
-  in
-
-  (* simply fill from 0 to length *)
-  let reserve_direct i _ (c, m) = 
-    (c+1, IntMap.add i c m)
-  in
-
-  let (us, equals, of_unknown) = UnknownSet.fold reserve_unknown us (0, [], UnknownMap.empty) in
-  let (_, of_equation) = IntMap.fold reserve_direct eqs (0,  IntMap.empty) in
-  let equalities=Array.of_list equals in
-  let dimension = 1 + IntMap.cardinal of_equation + Array.length equalities in
-
-  Printf.printf "Flat layout created\n%!" ;
-  { dimension ; of_unknown ; of_equation ; equalities }
-
-type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
-
-let flat_variables layout = [? var | var <- UnknownMap.values layout.of_unknown ?]
-
-let algebraics layout = [? index | Algebraic(index) <- UnknownMap.values layout.of_unknown ?]
-
-let flatten_unknown layout u = UnknownMap.find u layout.of_unknown
-
-let flatten_equation layout = function
-  | Linear(us, cs, c) -> Flat_Linear(Array.map (flatten_unknown layout) us, cs, c)
-
-let depends = function
-    Flat_Linear (us, _, _) -> us
-
-let update_fu yy yp value = function
-  | Algebraic i -> yy.{i} <- value
-  | State (yy_index, yp_index) -> yy.{yy_index} <- value ; yp.{yp_index} <- value 
-  | LowState i -> yy.{i} <- value
-  | Derivative i -> yp.{i} <- value
+(** 
+  flatten a row of unknown sstarting at derivative index @dn and state index @sn 
+  @return the new derivative index, new state index and the flat unknowns
+*)
+let flatten_unknown u (dn, sn, fm) = 
+  if not (UnknownMap.mem u fm) then    
+    perform (
+	hd <-- der_order u;
+	return ( match hd with 
+		   (* if the highest derivative of row @u is 0, we have one algebraic var *)
+		   Some(0) -> (dn, sn+1, UnknownMap.add {u_idx=u.u_idx;u_der=0} (Algebraic(sn)) fm)
+                 (* otherwise, create all the states and derivatives *)						       
+		 | Some n -> fill_states u.u_idx n (dn,sn,fm) 0
+		 | None -> (dn, sn, fm)
+	       )
+      )
+  else return (dn, sn, fm)
 
 let compute_fu yy yp = function
   | Algebraic i -> yy.{i}
@@ -144,6 +96,18 @@ let compute_feq yy yp = function
     Flat_Linear(us, fs, c) -> 
     let calc s i f = f *. (compute_fu yy yp us.(i)) +. s in
     Array.fold_lefti calc c fs
+
+let update_fu yy yp value = function
+  | Algebraic i -> yy.{i} <- value
+  | State (yy_index, yp_index) -> yy.{yy_index} <- value ; yp.{yp_index} <- value 
+  | LowState i -> yy.{i} <- value
+  | Derivative i -> yp.{i} <- value
+
+type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
+
+let flatten_equation fm = function
+  | Linear(us, cs, c) -> Flat_Linear(Array.map (fun u -> UnknownMap.find u fm) us, cs, c)
+
 
 let residual equalities eqs yy yp res = 
   let compute_feq = compute_feq yy yp in
@@ -157,7 +121,7 @@ let residual equalities eqs yy yp res =
   done ;
 
   let offset = Array.length eqs + 1 in
-  let equality r {yy_index; yp_index} = 
+  let equality r (yy_index, yp_index) = 
     (* Printf.printf "yy[%d] = yp[%d]\n" yy_index yp_index ; *)
     res.{r+offset} <- yy.{yy_index} -. yp.{yp_index} in
 
@@ -167,4 +131,31 @@ let residual equalities eqs yy yp res =
   Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
   Printf.printf "yp: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp)) ;
   Printf.printf "residual: %s\n%!" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res));  *)
+  
   0
+
+let collect_equalities fus = [? (yy_index, yp_index) | State(yy_index, yp_index) <- UnknownMap.values fus ?]
+
+let flatten s = ( perform (
+		      (* get the structural operations counter for validity check *)
+		      u_mark <-- unknown_mark ;
+		      e_mark <-- equation_mark ;
+		      
+		      us <-- all_unknowns ;
+		      (dn,sn,flat_us) <-- fold_enum flatten_unknown (0,0,UnknownMap.empty) us ;
+
+		      dimension <-- current_dimension ;
+		      
+		      let compute_unk u yy yp = compute_fu yy yp (UnknownMap.find u flat_us) in
+		      let compute_eq  e yy yp = compute_feq yy yp (flatten_equation flat_us eq) in
+		      let equalities = Array.of_enum (collect_equalities flat_us) in
+		      
+		      equations <-- all_equations ;
+
+		      let feqs = Array.map (flatten_equation flat_us) (Array.of_enum equations) in
+
+		      let compute_res = residual equalities feqs in
+
+		      return {dimension ; compute_res ; compute_eq ; compute_unk ; u_mark ; e_mark}
+		) ) s 
+
