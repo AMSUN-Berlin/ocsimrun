@@ -27,20 +27,13 @@
  *)
 
 open Batteries
-
-open Unknowns
-open Events
-open Events.Monadic
-
-open Bounce
+open Core
 open Recon
-open Models
-open Sim
 open Monads.ObjectStateMonad
 
 (** bouncing ball with recon output *)
 let () = 
-  Printf.printf "Bouncing ball example\n%!" ;
+  Printf.printf "Bouncing ball example\n%!" (* ;
   let outfile = File.open_out "results.wall" in
   
   ignore (write_header outfile ["time"; "h"; "h/dt"; "h/dt^2" ]) ;
@@ -63,5 +56,5 @@ let () =
 	return ball
   )) s in
 
-  Controlled.run_sim root (new bounce_state) { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. }
+  Controlled.run_sim root (new bounce_state) { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } *)
  

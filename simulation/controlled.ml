@@ -62,14 +62,12 @@ let process socket ~timeout ~callback =
   _process ()
  
 
-open Events
-open Events.Monadic
-open Monads.ObjectStateMonad
+open Core
 open Commands_t
 open Commands_j
+(*
 
-
-let run_sim model empty_state options =
+let setup = 
   let sockaddr = Unix.ADDR_INET (Unix.inet_addr_any, server_port) in
   let socket = init_socket sockaddr in
 
@@ -79,6 +77,10 @@ let run_sim model empty_state options =
   let rec control_sample _ = Lwt.map (function Some n -> Printf.printf "next control sync at %f\n" n ; Some { Events.next_t = n ; schedule = control_sample}
 					     | _ -> None
 				     ) (Lwt_mvar.take c) in
+
+  { }
+
+let run_sim model empty_state options =
 
   (* add the observation event *)
   let root s = ( 
@@ -120,3 +122,4 @@ let run_sim model empty_state options =
 	~timeout:so_timeout
 	~callback:callback
     )
+ *)

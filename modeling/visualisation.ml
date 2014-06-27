@@ -84,6 +84,7 @@ let update_buffer state buff t_map =
 module Monadic = struct
   open Batteries
   open Monads.ObjectStateMonad
+  open Lens
 	 
   type state_t = {
     counter : int;
@@ -97,7 +98,7 @@ module Monadic = struct
     method set_visualisation st = {< state = st >}
   end
 
-  let field = { field_get = (fun a -> (a#get_visualisation : state_t)) ; field_set = fun a b -> a#set_visualisation b }
+  let field = { get = (fun a -> (a#get_visualisation : state_t)) ; set = fun a b -> b#set_visualisation a }
 
   let add_obj obj s = ( perform ( 
 			    scene <-- get field ;

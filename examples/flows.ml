@@ -29,7 +29,7 @@
 open Batteries
 open Core
 open Monads.ObjectStateMonad
-
+open Lens
 open Observer
 
 type flow_sets = equation_handle UnknownMap.t
@@ -40,7 +40,7 @@ class flow_container = object
   method set_flows fs = {< _flows = fs >}
 end
 
-let flows = { field_get = (fun a -> (a#get_flows : flow_sets)) ; field_set = fun a b -> a#set_flows b }
+let flows = { get = (fun a -> (a#get_flows : flow_sets)) ; set = fun a b -> b#set_flows a }
 
 let merge_sums s1 s2 s = ( perform (
 			       Some eq1 <-- get_equation s1 ;

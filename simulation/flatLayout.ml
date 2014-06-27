@@ -32,7 +32,7 @@ into a form suitable for order-1 DAE solvers (i.e. it reduces any system
 to an implicit order-1 DAE).
  *)
 
-
+open Batteries
 open Core
 open Bigarray
 
@@ -69,7 +69,7 @@ let rec fill_states u hd (dn, sn, fm) = function
   | n -> (fill_states u hd (dn+1, sn+1, (UnknownMap.add {u_idx=u; u_der=n} (State(dn, sn)) fm) ) (n+1))
 
 (** 
-  flatten a row of unknown sstarting at derivative index @dn and state index @sn 
+  flatten a row of unknown starting at derivative index @dn and state index @sn 
   @return the new derivative index, new state index and the flat unknowns
 *)
 let flatten_unknown u (dn, sn, fm) = 
@@ -85,6 +85,8 @@ let flatten_unknown u (dn, sn, fm) =
 	       )
       )
   else return (dn, sn, fm)
+
+type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 
 let compute_fu yy yp = function
   | Algebraic i -> yy.{i}
@@ -102,8 +104,6 @@ let update_fu yy yp value = function
   | State (yy_index, yp_index) -> yy.{yy_index} <- value ; yp.{yp_index} <- value 
   | LowState i -> yy.{i} <- value
   | Derivative i -> yp.{i} <- value
-
-type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 
 let flatten_equation fm = function
   | Linear(us, cs, c) -> Flat_Linear(Array.map (fun u -> UnknownMap.find u fm) us, cs, c)
@@ -142,12 +142,12 @@ let flatten s = ( perform (
 		      e_mark <-- equation_mark ;
 		      
 		      us <-- all_unknowns ;
-		      (dn,sn,flat_us) <-- fold_enum flatten_unknown (0,0,UnknownMap.empty) us ;
-
+                      (dn,sn,flat_us) <-- (fold_enum flatten_unknown (0,0,UnknownMap.empty) us);
+		      
 		      dimension <-- current_dimension ;
 		      
 		      let compute_unk u yy yp = compute_fu yy yp (UnknownMap.find u flat_us) in
-		      let compute_eq  e yy yp = compute_feq yy yp (flatten_equation flat_us eq) in
+		      let compute_eq  e yy yp = compute_feq yy yp (flatten_equation flat_us e) in
 		      let equalities = Array.of_enum (collect_equalities flat_us) in
 		      
 		      equations <-- all_equations ;

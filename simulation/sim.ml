@@ -26,12 +26,21 @@
  *
  *)
 
-open Unknowns
-open Equations
-open Events
+open Core
 open Monads
-open Models
 open Batteries
+
+module type SimEngine = sig
+    type simulation_state
+
+    type ('r, 'a) sim_monad = (<get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r) -> ('r * 'a)
+    constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+
+    (* TODO: introduce result type *)
+    val init : ('r, int) sim_monad
+
+    val step : ('r, int) sim_monad
+end
 
 type experiment = {
   rtol : float ;
@@ -42,25 +51,17 @@ type experiment = {
 
 type result = Success | Error of int * string
 
-module type ENGINE_IMPL = 
-  sig
-    val simulate : 'r mode -> experiment -> result
-  end
-
-
-module SundialsImpl = struct
+module SundialsImpl : SimEngine = struct
   open Ida	   
   open Ida_utils
   open FlatLayout
   open FlatEvents
-  open FlatDAE
-
-  module IntMap = Map.Make(Int)
-
-  open Lwt
 
   let last arr = arr.((Array.length arr) - 1)
-		    	     
+  
+		    
+	    	     
+		    (*
   let simulate m exp = 
     let us =  m.unknowns 
     and evs = List.of_enum (IntMap.values m.events)
@@ -211,5 +212,5 @@ module SundialsImpl = struct
     Printf.printf "# Starting sim-loop...\n%!" ;
     let step = { tout = minstep ; tret = exp.start } in
     sim_loop event_state step 
-
+		     *)
 end

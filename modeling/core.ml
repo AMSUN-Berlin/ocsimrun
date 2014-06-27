@@ -85,10 +85,7 @@ type equation = Equality of unknown * unknown  (** equality constraint, i.e. x =
 
 type relation_sign = Lt | Gt
 
-type clock_record = {
-  base_val : equation;
-  schedule : float -> clock_record option;
-}
+type clock = LinearClock of float * float
 
 type relation_record = {
   base_rel : equation;
@@ -103,20 +100,18 @@ type signal = Or of signal * signal
 
 type 'a handle_store = { count : int ; store : 'a IntMap.t } 
 
+type sample_point = {
+  time : float ; clock : clock_handle
+}
+
+let sample_compare s1 s2 = Float.compare s1.time s2.time
+
+module SampleQueue = Heap.Make(struct type t = sample_point let compare = sample_compare end)
+
 type 'r event = {
   signal : signal ;
-  effects : 'r effect_gen ;
+  effects : ('r, unit) core_monad ;
 }
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
-
-and 'r effect = 
-  | Equation of int * equation
-  | Unknown of unknown * float
-  | ReSample of float
-  | Model of ('r, unit) core_monad
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
-
-and 'r effect_gen = (unknown -> float) -> ('r effect) list
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
 and 'r core_state_t = {
@@ -126,9 +121,11 @@ and 'r core_state_t = {
 
   equations : equation handle_store;
   
-  clocks : clock_record handle_store;
+  clocks : clock handle_store;
 
   relations : relation_record handle_store;
+
+  clock_queue : SampleQueue.t ;
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
@@ -232,6 +229,11 @@ module CoreRelation =
 				| (_, None, _) -> raise (Failure (Printf.sprintf "The handle %d is not element of the current model." e))
 			      )
 
+	   let all = perform (
+			 {count;store} <-- get ;
+			 return (IntMap.values store)
+		       )
+
 	   let mark = perform (
 			  s <-- get ;
 			  return s.count ;
@@ -260,9 +262,11 @@ let empty_core_state () = {
   clocks = empty_handle_store () ;
 
   relations = empty_handle_store () ;
+
+  clock_queue = SampleQueue.empty ;
 }
 
-class core_model = object(self : 'r)
+class core_state = object(self : 'r)
   val _core_state : 'r core_state_t = empty_core_state ()
   method get_core = _core_state
   method set_core cs = {< _core_state = cs >} 
@@ -278,9 +282,45 @@ module Relations = CoreRelation ( struct type el_t = relation_record end )
 
 let relations = { get = (fun a -> a.relations) ; set = fun a b -> {b with relations = a} }
 
-module Clocks = CoreRelation ( struct type el_t = clock_record end )
+module Clocks = CoreRelation ( struct type el_t = clock end )
 
 let clocks = { get = (fun a -> a.clocks) ; set = fun a b -> {b with clocks = a} }
+
+module QueueState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1} end
+module ClockQueue = struct 
+  include Monads.MakeStateMonad(QueueState)
+
+  let peek = perform (
+		 q <-- get ;
+		 return (if (SampleQueue.size q = 0) then None else Some (SampleQueue.find_min q).time)
+	       )
+
+
+  let rec _pop t q cs = if SampleQueue.size q = 0 then (q, cs) 
+			else
+			  let n = (SampleQueue.find_min q) in
+			  if n.time <= t then (
+			    let q' = SampleQueue.del_min q in 
+			    (q', n.clock :: cs)
+			  ) else
+			    (q, cs)
+
+  let push t ch = perform (
+		      q <-- get ;
+		      _ <-- put (SampleQueue.add {time=t; clock=ch} q) ;
+		      return () 
+		    )
+
+  let pop t = perform (
+		      q <-- get ;
+		      let (q', cs) = _pop t q [] in
+		      _ <-- put q' ;
+		      return cs 
+		    )
+			  
+end
+
+let clock_queue = { get = (fun a -> a.clock_queue) ; set = fun b a -> {a with clock_queue = b} }
 
 open Monads.ObjectStateMonad
 open Lens.Infix 
@@ -302,6 +342,8 @@ let current_dimension s = using ( core |-- equations ) Equations.cardinality s
 let add_equation e = using ( core |-- equations ) (Equations.add e)
 
 let del_equation h = using ( core |-- equations ) (Equations.del h)
+
+let all_equations s = using ( core |-- equations ) Equations.all s
 
 let equation_index h = using ( core |-- equations ) (Equations.index_of h)
 
@@ -325,3 +367,15 @@ let clock_index h = using ( core |-- clocks ) (Clocks.index_of h)
 
 let get_clock h = using ( core |-- clocks ) (Clocks.get_el h)
 
+let reschedule t ch = perform (
+			  c <-- get_clock ch ;
+			  let t' = match c with
+			      Some LinearClock(a, b) -> t*.a +. b 
+			  in
+			  _ <-- (using (core |-- clock_queue) (ClockQueue.push t' ch)) ;
+			  return t';
+			)
+
+let advance_time t = using (core |-- clock_queue) (ClockQueue.pop t)
+
+let peek_next_time s = using (core |-- clock_queue) ClockQueue.peek s

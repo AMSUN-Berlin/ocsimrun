@@ -28,48 +28,32 @@
 
 open Batteries
 open Core
+open Lens
+
+type observer_state = {
+  observed_unknowns : string UnknownMap.t;
+}
+
+let empty_obs_state () = {
+  observed_unknowns = UnknownMap.empty ;
+}
+
+type ('r, 'a) observer_monad = (<get_observer_state : observer_state; set_observer_state : observer_state -> 'r; .. > as 'r) -> ('r * 'a)
+constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+
+let lens = { get = (fun a -> (a#get_observer_state : observer_state)) ; set = fun a b -> b#set_observer_state a }
+
 open Monads.ObjectStateMonad
 
-open Visualisation 
-open Visualisation.Monadic
+let observe_as u name = perform (
+			    s <-- get lens ;
+			    _ <-- put lens {s with observed_unknowns = UnknownMap.add u name s.observed_unknowns} ;
+			    return ()
+			  )
 
-open Observer
-
-let bounce_ball s = ( 
-  perform (
-      h <-- new_unknown ;
-      v <-- der h ;
-      dv <-- der v;
-
-      _ <-- add_equation ( Linear ( [| dv |], [| 1. |], 9.81 ) ) ;
-
-      (*
-      let h_start = {
-	signal = start_signal ;
-	effects = fun _ -> [Unknown (h, 10.) ] ;
-      } in
-
-      _ <-- add_event h_start ;
-       
-
-      let bounce = {
-	signal = continuous (Linear([| h |], [| 1. |], 0.)) (-1) ;
-	effects = fun values -> [Unknown ((v), -0.7 *. (values (v)))]
-      } in
-      
-      _ <-- add_event bounce ;
-
-      ball3d <-- sphere 1. 32 ;
-      _ <-- add_transform ball3d {change=Move(constant 0., constant 0., Linear ([|h|], [|1.|], 0.)); at=Always} ;
-       *)
-      return (object method h = h end)
-)) s
-
-class bounce_state = object (self : 'a)
-  inherit Core.core_state
+class state_container = object(self : 'r)
+  val _observer_state = empty_obs_state ()
+  method get_obs = _observer_state
+  method set_obs s = {< _observer_state = s >}
 end
 
-
-		      
-
-				    

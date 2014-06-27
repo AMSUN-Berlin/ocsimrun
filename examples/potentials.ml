@@ -29,7 +29,7 @@
 open Batteries
 open Core
 open Monads.ObjectStateMonad
-
+open Lens
 open Observer
 
 
@@ -41,7 +41,7 @@ class potential_container = object
   method set_potentials ps = {< _potentials = ps >}
 end
 
-let potentials = { field_get = (fun a -> (a#get_potentials : potential_sets)) ; field_set = fun a b -> a#set_potentials b }
+let potentials = { get = (fun a -> (a#get_potentials : potential_sets)) ; set = fun a b -> b#set_potentials a }
 
 let merge_potentials (eqs1, eq_set1) (eqs2, eq_set2) = 
 	if (UnknownSet.equal eq_set1 eq_set2) then 

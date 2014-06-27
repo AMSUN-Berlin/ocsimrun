@@ -85,6 +85,8 @@ val current_dimension : ('r, int) core_monad
 
 val add_equation : equation -> ('r, equation_handle) core_monad
 
+val all_equations : ('r, equation BatEnum.t) core_monad
+
 val get_equation : equation_handle -> ('r, equation option) core_monad
 
 val del_equation : equation_handle -> ('r, unit) core_monad
@@ -97,19 +99,17 @@ val constant : float -> equation
 
 val depends : equation -> UnknownSet.t
 
-(** 
-an object-level clock is basically a time-dependent value 
-(represented by the equation @base) and a @schedule function
-which computes the next time-step based on the result of @base
- *)
-type clock_record = {
-  base_val : equation;
-  schedule : float -> clock_record option;
-}
+type clock = LinearClock of float * float
 
-val add_clock : clock_record -> ('r, clock_handle) core_monad
+val add_clock : clock -> ('r, clock_handle) core_monad
+
+val del_clock : clock_handle -> ('r, unit) core_monad
 
 val clock_index : clock_handle -> ('r, int) core_monad
+
+val peek_next_time : ('r, float option) core_monad
+
+val advance_time : float -> ('r, clock_handle list) core_monad
 
 type relation_sign = Lt 
 		   | Gt
@@ -131,25 +131,16 @@ type signal = Or of signal * signal
 
 type 'r event = {
   signal : signal ;
-  effects : 'r effect_gen ;
+  effects : ('r, unit) core_monad ;
 }
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
-
-and 'r effect = 
-  | Equation of int * equation
-  | Unknown of unknown * float
-  | ReSample of float
-  | Model of ('r, unit) core_monad
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
-
-and 'r effect_gen = (unknown -> float) -> ('r effect) list
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
 (*val add_event : 'r event -> ('r, event_handle) core_monad *)
 
-class type core_model = object('r)
+class core_state : object('r)
   constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
   val _core_state : 'r core_state_t 
   method get_core : 'r core_state_t
   method set_core : 'r core_state_t -> 'r
 end
+

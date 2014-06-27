@@ -74,6 +74,7 @@ module MakeStateMonad =
 (** ObjectStateMonad for composable State Monads *)
 module ObjectStateMonad =
   struct
+    open Batteries
     open Lens
 
     (* A state monad yields tuple of a state-object and an observable value *)

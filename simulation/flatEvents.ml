@@ -25,23 +25,49 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-
 open Batteries
 open Core
 open FlatLayout
 
+(** book-keeping of dependencies between events and possible sources *)
+type dependencies = {
+  on_clocks : event_handle ClockMap.t;
+  on_relations : event_handle RelMap.t;
+  on_step : EvSet.t;
+  on_unknowns : event_handle UnknownMap.t;
+}
+
+type ('r, 'a) event_state_monad = (<get_flat_event_state : 'r flat_event_state; set_flat_event_state : 'r flat_event_state -> 'r; .. > as 'r) -> ('r * 'a)
+constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+
+and 'r flat_event_state = {
+  relations : relation_record array;    
+
+  dependencies : dependencies;
+  memory : BitSet.t;
+
+  effects : ('r, unit) event_state_monad list;
+}
+constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; 
+	   get_flat_event_state : 'r flat_event_state; set_flat_event_state : 'r flat_event_state -> 'r; ..>
+
+type event_roots = float -> fvector -> fvector -> fvector -> int
+
+open Monads.ObjectStateMonad
+
+let event_loop s = (s, () )
+
+let root_found i s = (s, () )
+
+let roots t yy yp gi = 0
+
+let event_roots s = return ( roots ) s
+
+let flat_layout s = flatten s
+
 (*
 type sample_point = {
   time : float ; sample : int
-}
-
-(** book-keeping of dependencies between events and possible sources *)
-type dependencies = {
-  on_samples : int array array;
-  on_relations : int array array;
-  on_step : int array;
-  on_states : int array array;
-  on_derivatives : int array array;
 }
 
 type flat_signal = FOr of flat_signal * flat_signal 
@@ -55,18 +81,6 @@ type 'r flat_event = { flat_signal : flat_signal ; flat_effects : 'r effect_gen 
 let sample_compare s1 s2 = Float.compare s1.time s2.time
 
 module SampleQueue = Heap.Make(struct type t = sample_point let compare = sample_compare end)
-
-type 'r flat_event_state = {
-  flat_events : ('r flat_event) array;
-
-  dependencies : dependencies;
-
-  samples : sample_record array;
-  queue : SampleQueue.t;
-
-  relations : flat_relation_record array;    
-  memory : BitSet.t;
-}
 
 
 (* use with care, when Pervasives.compare is false-positive, we don't care *)
