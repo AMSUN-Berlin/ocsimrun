@@ -33,8 +33,11 @@ open Batteries
 module type SimEngine = sig
     type simulation_state
 
-    type ('r, 'a) sim_monad = (<get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r) -> ('r * 'a)
-    constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+    type 'r state_trait = <get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r
+    constraint 'r = 'r FlatEvents.state_trait
+
+    type ('r, 'a) sim_monad = 'r -> ('r * 'a)
+    constraint 'r = 'r state_trait
 
     (* TODO: introduce result type *)
     val init : ('r, int) sim_monad
@@ -56,12 +59,36 @@ module SundialsImpl : SimEngine = struct
   open Ida_utils
   open FlatLayout
   open FlatEvents
+  open Lens
+  open Monads.ObjectStateMonad
 
   let last arr = arr.((Array.length arr) - 1)
-  
-		    
-	    	     
-		    (*
+
+  type simulation_state = {
+    t : float;
+    yy : fvector;
+    yp : fvector;
+  }	     
+
+  type 'r state_trait = <get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r
+  constraint 'r = 'r FlatEvents.state_trait
+
+  type ('r, 'a) sim_monad = 'r -> ('r * 'a)
+  constraint 'r = 'r state_trait
+
+  let state = { get = (fun a -> a#get_sim_state) ; set = fun a b -> b#set_sim_state a }
+
+  let step s = ( perform ( 
+		     sim <-- get state ;
+		     evl <-- FlatEvents.flat_layout ;
+		     return 0
+	       )) s
+
+  let init s = ( perform (
+		     return 0
+	       )) s
+
+(*
   let simulate m exp = 
     let us =  m.unknowns 
     and evs = List.of_enum (IntMap.values m.events)

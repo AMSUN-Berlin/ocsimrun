@@ -37,8 +37,12 @@ type dependencies = {
   on_unknowns : event_handle UnknownMap.t;
 }
 
-type ('r, 'a) event_state_monad = (<get_flat_event_state : 'r flat_event_state; set_flat_event_state : 'r flat_event_state -> 'r; .. > as 'r) -> ('r * 'a)
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+
+type 'r state_trait = <get_event_state : 'r flat_event_state option; set_flat_event_state : 'r flat_event_state -> 'r; ..> as 'r
+constraint 'r = 'r Core.state_trait
+
+and ('r, 'a) event_state_monad = 'r -> ('r * 'a)
+constraint 'r = 'r state_trait
 
 and 'r flat_event_state = {
   relations : relation_record array;    
@@ -47,9 +51,10 @@ and 'r flat_event_state = {
   memory : BitSet.t;
 
   effects : ('r, unit) event_state_monad list;
+
+  
 }
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; 
-	   get_flat_event_state : 'r flat_event_state; set_flat_event_state : 'r flat_event_state -> 'r; ..>
+constraint 'r = 'r state_trait
 
 type event_roots = float -> fvector -> fvector -> fvector -> int
 
