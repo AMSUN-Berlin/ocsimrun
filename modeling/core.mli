@@ -63,7 +63,10 @@ module ClockMap : BatMap.S with type key = clock_handle
 type 'r core_state_t
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
-type ('r, 'a) core_monad = (<get_core : 'r core_state_t; set_core : 'r core_state_t -> 'r; .. > as 'r) -> ('r * 'a)
+type 'r state_trait = <get_core : 'r core_state_t; set_core : 'r core_state_t -> 'r; .. > as 'r
+constraint 'r = 'r state_trait
+
+type ('r, 'a) core_monad = 'r state_trait -> ('r state_trait * 'a)
 
 val new_unknown : ('r, unknown) core_monad
 
@@ -105,6 +108,8 @@ val add_clock : clock -> ('r, clock_handle) core_monad
 
 val del_clock : clock_handle -> ('r, unit) core_monad
 
+val clock_mark : ('r, int) core_monad
+
 val clock_index : clock_handle -> ('r, int) core_monad
 
 val peek_next_time : ('r, float option) core_monad
@@ -121,7 +126,9 @@ type relation_record = {
 
 val add_relation : relation_record -> ('r, relation_handle) core_monad
 
-val relation_index : clock_handle -> ('r, int) core_monad
+val relation_index : relation_handle -> ('r, int) core_monad
+
+val relation_mark : ('r, int) core_monad
 
 type signal = Or of signal * signal 
 	    | And of signal * signal
@@ -135,7 +142,11 @@ type 'r event = {
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
-(*val add_event : 'r event -> ('r, event_handle) core_monad *)
+val add_event : 'r event -> ('r, event_handle) core_monad
+
+val del_event : event_handle -> ('r, unit) core_monad
+
+val event_mark : ('r, int) core_monad
 
 class core_state : object('r)
   constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>

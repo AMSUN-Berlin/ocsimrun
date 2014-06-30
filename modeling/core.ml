@@ -129,7 +129,11 @@ and 'r core_state_t = {
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
-and ('r, 'a) core_monad = (<get_core : 'r core_state_t; set_core : 'r core_state_t -> 'r; .. > as 'r) -> ('r * 'a)
+and 'r state_trait = <get_core : 'r core_state_t; set_core : 'r core_state_t -> 'r; .. > as 'r
+constraint 'r = 'r state_trait
+
+and ('r, 'a) core_monad = 'r state_trait -> ('r state_trait * 'a)
+constraint 'r = 'r state_trait
 
 type 'r core_lens = ('r, ('r core_state_t)) Lens.t 
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
@@ -191,59 +195,63 @@ end
 
 let unknowns = { get = (fun a -> a.unknowns) ; set = fun a b -> {b with unknowns = a} }
 
-module type CORE_TYPE = sig 
-    type el_t
-  end
-
 let empty_handle_store () = { count = 0; store = IntMap.empty }
 
 (* all core relations follow the same implementation pattern *)
-module CoreRelation = 
-  functor(Type : CORE_TYPE) -> 
-	 struct
-	   module StateMonad = Monads.MakeStateMonad(struct type t = Type.el_t handle_store  let empty = empty_handle_store end)
-						    
-	   open StateMonad
-	   
-	   let cardinality = perform (
-				 {count;store} <-- get ;
-				 return (IntMap.cardinal store)
-			       )
-	   
-	   let add e = perform (
-			   {count;store} <-- get ;
-			   _ <-- put {count = count + 1; store = IntMap.add count e store} ;
-			   return count 
-			 )
+module Basic = struct 
+  let bind m f =
+    fun s ->
+    match m s with 
+    | (s', x) -> f x s'
 
-	   let del e = perform (
-			   s <-- get ;
-			   _ <-- put {store = IntMap.remove e s.store ; count = s.count + 1} ;
-			   return ()
-			 )
+  let return a = fun s -> (s, a)
+  
+  let access m =
+    match m (empty_handle_store () ) with
+    | (s, x) -> x
+  let put s =
+    fun _ -> (s, ())
+  let get =
+    fun s -> (s, s)
+	       
+  let cardinality = perform (
+			{count;store} <-- get ;
+			return (IntMap.cardinal store)
+		      )
+			    
+  let add e = perform (
+		  {count;store} <-- get ;
+		  _ <-- put {count = count + 1; store = IntMap.add count e store} ;
+		  return count 
+		)
 
-	   let index_of e = perform (
-				{count; store} <-- get ;
-				match IntMap.split e store with
-				| (l, Some _, _) -> return (IntMap.cardinal l)
-				| (_, None, _) -> raise (Failure (Printf.sprintf "The handle %d is not element of the current model." e))
-			      )
+  let del e = perform (
+		  s <-- get ;
+		  _ <-- put {store = IntMap.remove e s.store ; count = s.count + 1} ;
+		  return ()
+		)
+		      
+  let index_of e = perform (
+		       {count; store} <-- get ;
+		       match IntMap.split e store with
+		       | (l, Some _, _) -> return (IntMap.cardinal l)
+		       | (_, None, _) -> raise (Failure (Printf.sprintf "The handle %d is not element of the current model." e))
+		     )
 
-	   let all = perform (
-			 {count;store} <-- get ;
-			 return (IntMap.values store)
-		       )
+  let all = perform (
+		{count;store} <-- get ;
+		return (IntMap.values store)
+	      )
 
-	   let mark = perform (
-			  s <-- get ;
-			  return s.count ;
-			)
+  let mark s = ( perform (
+		     s <-- get ;
+		     return s.count ;
+	       ) ) s
 
-	   let get_el e = perform (
-			      s <-- get ;			   
-			      return (IntMap.Exceptionless.find e s.store)
-			    )
-
+  let get_el e = perform (
+		     s <-- get ;			   
+		     return (IntMap.Exceptionless.find e s.store)
+		   )
 	 end
 
 let constant f = Linear([||], [||], f)
@@ -264,6 +272,7 @@ let empty_core_state () = {
   relations = empty_handle_store () ;
 
   clock_queue = SampleQueue.empty ;
+
 }
 
 class core_state = object(self : 'r)
@@ -274,17 +283,13 @@ end
 		     
 let core : 'r core_lens = { get = (fun a -> (a#get_core : 'r core_state_t)) ; set = fun a b -> (b#set_core a) }
 
-module Equations = CoreRelation ( struct type el_t = equation end )
-
 let equations = { get = (fun a -> a.equations) ; set = fun a b -> {b with equations = a} }
-
-module Relations = CoreRelation ( struct type el_t = relation_record end )
 
 let relations = { get = (fun a -> a.relations) ; set = fun a b -> {b with relations = a} }
 
-module Clocks = CoreRelation ( struct type el_t = clock end )
-
 let clocks = { get = (fun a -> a.clocks) ; set = fun a b -> {b with clocks = a} }
+
+let events = { get = (fun a -> a.events) ; set = fun a b -> {b with events = a} }
 
 module QueueState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1} end
 module ClockQueue = struct 
@@ -337,35 +342,39 @@ let der_order u = using (core |-- unknowns) (Unknowns.der_order u)
 
 let der u = using (core |-- unknowns) (Unknowns.der u)
 
-let current_dimension s = using ( core |-- equations ) Equations.cardinality s
+let current_dimension s = using ( core |-- equations ) Basic.cardinality s
 
-let add_equation e = using ( core |-- equations ) (Equations.add e)
+let add_equation e = using ( core |-- equations ) (Basic.add e)
 
-let del_equation h = using ( core |-- equations ) (Equations.del h)
+let del_equation h = using ( core |-- equations ) (Basic.del h)
 
-let all_equations s = using ( core |-- equations ) Equations.all s
+let all_equations s = using ( core |-- equations ) Basic.all s
 
-let equation_index h = using ( core |-- equations ) (Equations.index_of h)
+let equation_index h = using ( core |-- equations ) (Basic.index_of h)
 
-let equation_mark s = using (core |-- equations) Equations.mark s
+let equation_mark s = using (core |-- equations) Basic.mark s
 
-let get_equation h = using ( core |-- equations ) (Equations.get_el h)
+let get_equation h = using ( core |-- equations ) (Basic.get_el h)
 
-let add_relation e = using ( core |-- relations ) (Relations.add e)
+let add_relation e = using ( core |-- relations ) (Basic.add e)
 
-let del_relation h = using ( core |-- relations ) (Relations.del h)
+let relation_mark s = using (core |-- relations) Basic.mark s
 
-let relation_index h = using ( core |-- relations ) (Relations.index_of h)
+let del_relation h = using ( core |-- relations ) (Basic.del h)
 
-let get_relation h = using ( core |-- relations ) (Relations.get_el h)
+let relation_index h = using ( core |-- relations ) (Basic.index_of h)
 
-let add_clock e = using ( core |-- clocks ) (Clocks.add e)
+let get_relation h = using ( core |-- relations ) (Basic.get_el h)
 
-let del_clock h = using ( core |-- clocks ) (Clocks.del h)
+let add_clock e = using ( core |-- clocks ) (Basic.add e)
 
-let clock_index h = using ( core |-- clocks ) (Clocks.index_of h)
+let del_clock h = using ( core |-- clocks ) (Basic.del h)
 
-let get_clock h = using ( core |-- clocks ) (Clocks.get_el h)
+let clock_index h = using ( core |-- clocks ) (Basic.index_of h)
+
+let get_clock h = using ( core |-- clocks ) (Basic.get_el h)
+
+let clock_mark s = using (core |-- clocks) Basic.mark s
 
 let reschedule t ch = perform (
 			  c <-- get_clock ch ;
@@ -379,3 +388,14 @@ let reschedule t ch = perform (
 let advance_time t = using (core |-- clock_queue) (ClockQueue.pop t)
 
 let peek_next_time s = using (core |-- clock_queue) ClockQueue.peek s
+
+let add_event e = using (core |-- events) (Basic.add e)
+
+let del_event h = using (core |-- events) (Basic.del h)
+
+let get_event h = using (core |-- events) (Basic.get_el h)
+
+let event_index h = using (core |-- events) (Basic.index_of h)
+
+let event_mark s = using (core |-- events) Basic.mark s
+
