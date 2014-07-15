@@ -31,28 +31,39 @@ open FlatLayout
 
 (** book-keeping of dependencies between events and possible sources *)
 type dependencies = {
-  on_clocks : event_handle ClockMap.t;
-  on_relations : event_handle RelMap.t;
+  on_clocks : EvSet.t ClockMap.t;
+  on_relations : EvSet.t RelMap.t;
   on_step : EvSet.t;
-  on_unknowns : event_handle UnknownMap.t;
+  on_unknowns : EvSet.t UnknownMap.t;
 }
 
+type event_marks = {
+  clm : int;
+  rlm : int;
+  evm : int;
+}
 
-type 'r state_trait = <get_event_state : 'r flat_event_state option; set_flat_event_state : 'r flat_event_state -> 'r; ..> as 'r
+type flat_relation_record = {
+  feq : flat_equation ;
+  sign : relation_sign ;
+}
+
+type 'r state_trait = <get_event_state : 'r flat_event_state option; set_event_state : 'r flat_event_state option -> 'r; ..> as 'r
 constraint 'r = 'r Core.state_trait
 
 and ('r, 'a) event_state_monad = 'r -> ('r * 'a)
 constraint 'r = 'r state_trait
 
 and 'r flat_event_state = {
-  relations : relation_record array;    
+  layout : layout ;
+  relations : flat_relation_record array;    
 
   dependencies : dependencies;
   memory : BitSet.t;
 
   effects : ('r, unit) event_state_monad list;
 
-  
+  marks : event_marks;
 }
 constraint 'r = 'r state_trait
 
@@ -60,7 +71,38 @@ type event_roots = float -> fvector -> fvector -> fvector -> int
 
 open Monads.ObjectStateMonad
 
-let event_loop s = (s, () )
+open Lens
+
+let state = { get = (fun a -> a#get_event_state) ; set = fun a b -> b#set_event_state a }
+
+let eadd = EvSet.add
+let eempty = EvSet.eempty
+
+(* parse a signal and collect on the fly:
+     dependencies on "every step", dependencies on clocks ,
+     dependencies on relations
+ *)
+let rec collect_deps (stds,cds,rds) (eh,si) = match si with 
+    EveryStep -> (eadd eh stds, sads, rds)
+
+  | Clock (ch) when ClockMap.mem ch cds -> 
+     (stds, ClockMap.modify ch (eadd eh) cds, rds)
+
+  | Clock (ch) -> (stds, ClockMap.add ch (eadd eh eempty) cds, rds)
+
+  | Relation (rh) when RelMap.mem rh rds ->
+		       (stds, cds, RelMap.modify rh (eadd eh) rds)
+
+  | Relation (rh) ->
+     (stds, sads, RelMap.add rh (eadd sh eempty) rds)
+		       
+  | Or(lhs, rhs) -> let (stds', cds', rds') = collect_deps (stds,cds,rds) (sh, lhs) in
+		    collect_deps (stds',cds',rds') (sh, rhs)
+
+  | And(lhs, rhs) -> let (stds', cds', rds') = collect_deps (stds,cds,rds) (sh, lhs) in
+		     collect_deps (stds',cds',rds') (sh, rhs)
+
+let event_loop yy yp s = (s, () )
 
 let root_found i s = (s, () )
 
@@ -68,76 +110,55 @@ let roots t yy yp gi = 0
 
 let event_roots s = return ( roots ) s
 
-let flat_layout s = flatten s
+let flatten s = ( perform (
+		      evs <-- all_events ;
+		      let (stds, cds, rds) = Enum.fold collect_deps (vempty, ClockMap.empty, RelMap.empty) evs in (* collect dependencies from events *)
+		      let memory = BitSet.create (vlen r) in
+
+		      let dependencies = { 
+			on_unknowns = UnknownMap.empty ; (* TODO: fill *)
+			on_clocks = cds; on_step = stds; on_relations = rds;
+		      } in
+		      
+		      let es = { layout ; relations ; dependencies ; memory ; effects = [] ; marks } in
+
+		      return es
+		)) s	      
+
+
+let is_valid s = perform (
+		     c <-- clock_mark ;
+		     e <-- event_mark ;
+		     r <-- relation_mark ;
+		     return (s.marks.clm = c && s.marks.rlm = r && s.marks.evm = e) 			    
+		 )
+
+let validate es = perform (
+		      v <-- is_valid es ;
+		      if (v) then return es else flatten  
+		    )
+
+let get s = ( perform (
+		  so <-- get state ;
+		  match so with 
+		    Some es -> validate es 
+		  | None -> flatten
+	    ))
+
+let flat_layout s = ( perform (
+			  so <-- get state ;
+			  layout <-- (match so with
+					Some (es) -> FlatLayout.validate es.layout 
+				      | None -> FlatLayout.flatten );
+			  return layout
+		    )) s
+
+
+
 
 (*
-type sample_point = {
-  time : float ; sample : int
-}
-
-type flat_signal = FOr of flat_signal * flat_signal 
-		 | FAnd of flat_signal * flat_signal
-		 | FRel of int
-		 | FSmp of int
-		 | FEvr
-
-type 'r flat_event = { flat_signal : flat_signal ; flat_effects : 'r effect_gen }
-
-let sample_compare s1 s2 = Float.compare s1.time s2.time
-
-module SampleQueue = Heap.Make(struct type t = sample_point let compare = sample_compare end)
 
 
-(* use with care, when Pervasives.compare is false-positive, we don't care *)
-module SampleMap = Map.Make(struct type t = sample_record let compare = Pervasives.compare end)
-module RelMap = Map.Make(struct type t = flat_relation_record let compare = Pervasives.compare end)			       
-
-let vlen = Vect.length
-and vempty = Vect.empty
-and vadd = Vect.append 
-and vget = Vect.get
-and vmod = Vect.modify
-and vmap = Vect.map
-and array_of_vector = Vect.to_array
-
-(* compile an event signal to a form where all samples and relations are indexed - collect on the fly:
-     samples (vector), relations (vector), dependencies on "every step" signal (vector), dependencies on samples (vector SampleMap.t),
-     dependencies on relations (vector EqMap.t)
- *)
-let rec compile_signal layout s r stds sads rds n = function 
-    EveryStep -> (s, r, vadd n stds, sads, rds, FEvr)
-  | Sample (sr) when SampleMap.mem sr sads -> 
-     (s, r, stds, SampleMap.modify sr (vadd n) sads, rds, FSmp(vlen s))
-  | Sample (sr) -> (vadd sr s, r, stds, SampleMap.add sr (vadd n vempty) sads, rds, FSmp(vlen s))
-
-  | Relation {relation;sign} -> let feq = {flat_relation=flatten_equation layout relation; flat_sign = sign} in
-				if RelMap.mem feq rds then
-				  (s, r, stds, sads, RelMap.modify feq (vadd n) rds, FRel(vlen r))
-				else 
-				  (s, vadd feq r, stds, sads, RelMap.add feq (vadd n vempty) rds, FRel(vlen r))
-		       
-  | Or(lhs, rhs) -> let (s', r', stds', sads', rds', lhs') = compile_signal layout s r stds sads rds n lhs in
-		    let (s'', r'', stds'', sads'', rds'', rhs') = compile_signal layout s r stds sads rds n rhs in
-		    (s'', r'', stds'', sads'', rds'', FOr(lhs', rhs'))
-
-  | And(lhs, rhs) -> let (s', r', stds', sads', rds', lhs') = compile_signal layout s r stds sads rds n lhs in
-		     let (s'', r'', stds'', sads'', rds'', rhs') = compile_signal layout s r stds sads rds n rhs in
-		     (s'', r'', stds'', sads'', rds'', FAnd(lhs', rhs'))
-
-let compile_event layout s r stds sads rds n {signal; effects} = let (s'', r'', stds'', sads'', rds'', flat_signal) = 
-								   compile_signal layout s r stds sads rds n signal in
-								 (s'', r'', stds'', sads'', rds'', 
-								  {flat_signal; 
-								   flat_effects = effects})
-
-      
-let rec compile layout ces samples relations step_deps sample_deps rel_deps = function
-    e :: rest -> let (s', r', stds', sads', rds', c_e) = 
-		   compile_event layout samples relations step_deps sample_deps rel_deps (vlen ces) e
-		 in
-		 compile layout (vadd c_e ces) s' r' stds' sads' rds' rest
-
-  | [] -> (ces, samples, relations, step_deps, sample_deps, rel_deps)
 
 
 type signal_src = SigSmp of int | SigRel of int * bool
@@ -163,45 +184,6 @@ let rec eval src rel_state = function
 		    (* minimal form computed by wolfram alpha, using <> to substitute for 'xor' *)
 		    (a1 || b1, (a1 && b2) <> (a2 && b1) <> (a2 && b2))
 		       		       		       
-let collect_dependencies deps i rel = 
-
-  let rec add_u (algs, ders) = function
-      LowState j when vlen algs > j -> (vmod algs j (vadd i), ders)
-    | LowState(j) as u -> add_u (vadd vempty algs, ders) u
-    | Algebraic(j) as u when vlen algs > j -> (vmod algs j (vadd i), ders)
-    | Algebraic(j) as u -> add_u (vadd vempty algs, ders) u
-    | State(j, _) as u when vlen algs > j -> (vmod algs j (vadd i), ders)
-    | State(j, _) as u -> add_u (vadd vempty algs, ders) u
-    | Derivative j when vlen ders > j -> (algs, vmod ders j (vadd i))
-    | Derivative(j) as u -> add_u (algs, vadd vempty ders) u
-  in
-
-  Array.fold_left add_u deps (depends rel.flat_relation)
-
-let init layout es = let (ces, s, r, stds, sads, rds) = compile layout vempty vempty vempty vempty SampleMap.empty RelMap.empty es in
-		     let samples = array_of_vector s in
-		     Printf.printf "Got %d samples\n" (vlen s);
-		     let relations  = array_of_vector r in
-
-		     let memory = BitSet.create (vlen r) in
-		     let (algs, ders) = Array.fold_lefti collect_dependencies (vempty, vempty) relations in
-
-		     let dependencies = { 
-		       on_states = array_of_vector (vmap array_of_vector algs) ; 
-		       on_derivatives = array_of_vector (vmap array_of_vector ders) ;
-		       on_samples = Array.map (fun s -> array_of_vector (SampleMap.find s sads)) samples;
-		       on_relations = Array.map (fun r -> array_of_vector (RelMap.find r rds)) relations;
-		       on_step = array_of_vector stds 
-		     } in
-
-		     let enqueue q i sr = SampleQueue.add {time = sr.next_t ; sample = i} q in
-
-		     let queue = Array.fold_lefti enqueue SampleQueue.empty samples in
-		
-		     { flat_events = array_of_vector ces; dependencies; 
-		       samples; queue;
-		       relations; memory ;
-		     }
 
 
 let collect state src effs e = 
