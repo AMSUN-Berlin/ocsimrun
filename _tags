@@ -120,6 +120,6 @@
 <examples/*.ml{,i}>: use_dae_output
 <examples/*.ml{,i}>: use_dae_simulation
 # OASIS_STOP
-<**/*.ml>: pkg_batteries, syntax_camlp4o, pkg_batteries.syntax, lwt.syntax
+<**/*.ml>: syntax_camlp4o
 <simulation/commands_t.{ml,mli}>: atdgenerated
 
