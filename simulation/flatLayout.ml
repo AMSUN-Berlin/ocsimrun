@@ -49,12 +49,6 @@ type layout = {
 
 open Monads.ObjectStateMonad
 
-let is_valid layout = perform (
-			  u_mark <-- unknown_mark ;
-			  e_mark <-- equation_mark ;
-			  return (u_mark = layout.u_mark && e_mark = layout.e_mark)
-			)
-
 (** Distinguish between a yy or yp entry *)
 type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
@@ -159,3 +153,14 @@ let flatten s = ( perform (
 		      return {dimension ; compute_res ; compute_eq ; compute_unk ; u_mark ; e_mark}
 		) ) s 
 
+let is_valid layout = perform (
+			  u_mark <-- unknown_mark ;
+			  e_mark <-- equation_mark ;
+			  return (u_mark = layout.u_mark && e_mark = layout.e_mark)
+			)
+
+let validate layout = perform (
+			  v <-- is_valid layout;
+			  l <-- if v then return layout else flatten ;
+			  return l
+			)
