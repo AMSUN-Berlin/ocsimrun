@@ -238,10 +238,21 @@ module Basic = struct
 		       | (_, None, _) -> raise (Failure (Printf.sprintf "The handle %d is not element of the current model." e))
 		     )
 
-  let all = perform (
-		{count;store} <-- get ;
-		return (IntMap.values store)
-	      )
+  let all s = ( perform (
+		    {count;store} <-- get ;
+		    return (IntMap.values store)
+	      ) ) s
+
+  let handles s = (perform (
+		     {count;store} <-- get ;
+		     return (IntMap.keys store)
+		) ) s
+
+  let store s = (perform ( 
+		     {count;store} <-- get ;
+		     return store
+		) ) s
+
 
   let mark s = ( perform (
 		     s <-- get ;
@@ -252,7 +263,7 @@ module Basic = struct
 		     s <-- get ;			   
 		     return (IntMap.Exceptionless.find e s.store)
 		   )
-	 end
+end
 
 let constant f = Linear([||], [||], f)
 
@@ -364,6 +375,8 @@ let del_relation h = using ( core |-- relations ) (Basic.del h)
 
 let relation_index h = using ( core |-- relations ) (Basic.index_of h)
 
+let relation_handles s = using ( core |-- relations) Basic.handles s
+
 let get_relation h = using ( core |-- relations ) (Basic.get_el h)
 
 let add_clock e = using ( core |-- clocks ) (Basic.add e)
@@ -399,3 +412,8 @@ let event_index h = using (core |-- events) (Basic.index_of h)
 
 let event_mark s = using (core |-- events) Basic.mark s
 
+let all_events s = using ( core |-- events) Basic.all s
+
+let event_handles s = using ( core |-- events) Basic.handles s
+
+let event_map s = using ( core |-- events) Basic.store s

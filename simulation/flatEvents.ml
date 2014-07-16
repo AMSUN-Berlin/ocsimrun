@@ -76,55 +76,36 @@ open Lens
 let state = { get = (fun a -> a#get_event_state) ; set = fun a b -> b#set_event_state a }
 
 let eadd = EvSet.add
-let eempty = EvSet.eempty
+let eempty = EvSet.empty
+
 
 (* parse a signal and collect on the fly:
      dependencies on "every step", dependencies on clocks ,
      dependencies on relations
  *)
-let rec collect_deps (stds,cds,rds) (eh,si) = match si with 
-    EveryStep -> (eadd eh stds, sads, rds)
+let collect_deps (stds, cds, rds) (eh,ev) =
+  
+  let rec sig_collect_deps (stds,cds,rds) = function
+      EveryStep -> (eadd eh stds, cds, rds)
 
-  | Clock (ch) when ClockMap.mem ch cds -> 
-     (stds, ClockMap.modify ch (eadd eh) cds, rds)
+    | Clock (ch) when ClockMap.mem ch cds -> 
+       (stds, ClockMap.modify ch (eadd eh) cds, rds)
 
-  | Clock (ch) -> (stds, ClockMap.add ch (eadd eh eempty) cds, rds)
+    | Clock (ch) -> (stds, ClockMap.add ch (eadd eh eempty) cds, rds)
 
-  | Relation (rh) when RelMap.mem rh rds ->
-		       (stds, cds, RelMap.modify rh (eadd eh) rds)
+    | Relation (rh) when RelMap.mem rh rds ->
+       (stds, cds, RelMap.modify rh (eadd eh) rds)
 
-  | Relation (rh) ->
-     (stds, sads, RelMap.add rh (eadd sh eempty) rds)
+    | Relation (rh) ->
+       (stds, cds, RelMap.add rh (eadd eh eempty) rds)
 		       
-  | Or(lhs, rhs) -> let (stds', cds', rds') = collect_deps (stds,cds,rds) (sh, lhs) in
-		    collect_deps (stds',cds',rds') (sh, rhs)
+    | Or(lhs, rhs) -> let (stds', cds', rds') = sig_collect_deps (stds,cds,rds) lhs in
+		      sig_collect_deps (stds',cds',rds') rhs
 
-  | And(lhs, rhs) -> let (stds', cds', rds') = collect_deps (stds,cds,rds) (sh, lhs) in
-		     collect_deps (stds',cds',rds') (sh, rhs)
+    | And(lhs, rhs) -> let (stds', cds', rds') = sig_collect_deps (stds,cds,rds) lhs in
+		       sig_collect_deps (stds',cds',rds') rhs
 
-let event_loop yy yp s = (s, () )
-
-let root_found i s = (s, () )
-
-let roots t yy yp gi = 0
-
-let event_roots s = return ( roots ) s
-
-let flatten s = ( perform (
-		      evs <-- all_events ;
-		      let (stds, cds, rds) = Enum.fold collect_deps (vempty, ClockMap.empty, RelMap.empty) evs in (* collect dependencies from events *)
-		      let memory = BitSet.create (vlen r) in
-
-		      let dependencies = { 
-			on_unknowns = UnknownMap.empty ; (* TODO: fill *)
-			on_clocks = cds; on_step = stds; on_relations = rds;
-		      } in
-		      
-		      let es = { layout ; relations ; dependencies ; memory ; effects = [] ; marks } in
-
-		      return es
-		)) s	      
-
+  in sig_collect_deps (stds, cds, rds) ev.signal
 
 let is_valid s = perform (
 		     c <-- clock_mark ;
@@ -132,6 +113,54 @@ let is_valid s = perform (
 		     r <-- relation_mark ;
 		     return (s.marks.clm = c && s.marks.rlm = r && s.marks.evm = e) 			    
 		 )
+
+let flat_layout s = ( perform (
+			  so <-- get state ;
+			  layout <-- (match so with
+					Some (es) -> FlatLayout.validate es.layout 
+				      | None -> FlatLayout.flatten );
+			  return layout
+		    )) s
+
+let flatten_relation layout rh frs = perform (
+					 o <-- get_relation rh ;
+					 return
+					   (match o with
+					      Some rel -> 
+					      let feq = layout.flatten_eq rel.base_rel in
+					      Vect.append { feq ; sign = rel.Core.sign } frs
+					    | None -> frs ) ;
+				       )
+
+let event_marks s = ( perform ( 
+			  evm <-- event_mark ;
+			  clm <-- clock_mark ;
+			  rlm <-- relation_mark ;
+			  return { clm ; rlm ; evm }
+		    )) s
+
+let flatten s = ( perform (
+		      layout <-- flat_layout ;
+		      evs <-- event_map ;
+		      let (stds, cds, rds) = Enum.fold collect_deps (eempty, ClockMap.empty, RelMap.empty) (EvMap.enum evs) in (* collect dependencies from events *)
+
+		      relations <-- relation_handles ;
+
+		      frs <-- fold_enum (flatten_relation layout) Vect.empty relations;
+
+		      let memory = BitSet.create (Vect.length frs) in
+
+		      let dependencies = { 
+			on_unknowns = UnknownMap.empty ; (* TODO: fill *)
+			on_clocks = cds; on_step = stds; on_relations = rds;
+		      } in
+
+		      marks <-- event_marks ;
+
+		      let es = { layout ; relations = Vect.to_array frs; dependencies ; memory ; effects = [] ; marks } in
+
+		      return es
+		)) s	      
 
 let validate es = perform (
 		      v <-- is_valid es ;
@@ -143,18 +172,15 @@ let get s = ( perform (
 		  match so with 
 		    Some es -> validate es 
 		  | None -> flatten
-	    ))
+	    )) s
 
-let flat_layout s = ( perform (
-			  so <-- get state ;
-			  layout <-- (match so with
-					Some (es) -> FlatLayout.validate es.layout 
-				      | None -> FlatLayout.flatten );
-			  return layout
-		    )) s
+let event_loop yy yp s = (s, () )
 
+let root_found i s = (s, () )
 
+let roots t yy yp gi = 0
 
+let event_roots s = return ( roots ) s
 
 (*
 

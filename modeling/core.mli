@@ -128,6 +128,10 @@ val add_relation : relation_record -> ('r, relation_handle) core_monad
 
 val relation_index : relation_handle -> ('r, int) core_monad
 
+val get_relation : relation_handle -> ('r, relation_record option) core_monad
+
+val relation_handles : ('r, relation_handle BatEnum.t) core_monad
+
 val relation_mark : ('r, int) core_monad
 
 type signal = Or of signal * signal 
@@ -143,6 +147,12 @@ type 'r event = {
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
 val add_event : 'r event -> ('r, event_handle) core_monad
+
+val all_events : ('r, 'r event BatEnum.t) core_monad
+
+val event_handles : ('r, event_handle BatEnum.t) core_monad
+
+val event_map : ('r, 'r event EvMap.t) core_monad
 
 val del_event : event_handle -> ('r, unit) core_monad
 

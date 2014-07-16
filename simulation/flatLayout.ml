@@ -38,19 +38,25 @@ open Bigarray
 
 type fvector = (float, float64_elt, c_layout) Array1.t
 
+(** Distinguish between a yy or yp entry *)
+type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
+
+type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
+
 type layout = {
   dimension : int;
   compute_res : fvector -> fvector -> fvector -> int;
-  compute_unk : unknown -> fvector -> fvector -> float;
-  compute_eq : equation -> fvector -> fvector -> float;
+  compute_unk : fvector -> fvector -> flat_unknown -> float;
+  compute_eq : fvector -> fvector -> flat_equation -> float;
+
+  flatten_unk : unknown -> flat_unknown;
+  flatten_eq : equation -> flat_equation;
+
   u_mark : int;
   e_mark : int;
 }
 
 open Monads.ObjectStateMonad
-
-(** Distinguish between a yy or yp entry *)
-type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
 let rec fill_states u hd (dn, sn, fm) = function 
   (* only the 0-derivative is a plain flat state *)
@@ -80,20 +86,18 @@ let flatten_unknown u (dn, sn, fm) =
       )
   else return (dn, sn, fm)
 
-type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
-
-let compute_fu yy yp = function
+let compute_unk yy yp = function
   | Algebraic i -> yy.{i}
   | LowState i -> yy.{i}
   | State (i, _) -> yy.{i}
   | Derivative i -> yp.{i}
 
-let compute_feq yy yp = function
+let compute_eq yy yp = function
     Flat_Linear(us, fs, c) -> 
-    let calc s i f = f *. (compute_fu yy yp us.(i)) +. s in
+    let calc s i f = f *. (compute_unk yy yp us.(i)) +. s in
     Array.fold_lefti calc c fs
 
-let update_fu yy yp value = function
+let update_unk yy yp value = function
   | Algebraic i -> yy.{i} <- value
   | State (yy_index, yp_index) -> yy.{yy_index} <- value ; yp.{yp_index} <- value 
   | LowState i -> yy.{i} <- value
@@ -102,9 +106,8 @@ let update_fu yy yp value = function
 let flatten_equation fm = function
   | Linear(us, cs, c) -> Flat_Linear(Array.map (fun u -> UnknownMap.find u fm) us, cs, c)
 
-
 let residual equalities eqs yy yp res = 
-  let compute_feq = compute_feq yy yp in
+  let compute_feq = compute_eq yy yp in
 
   (* the 0-th unknown is the time *)
   res.{0} <- yp.{0} -. 1. ;
@@ -140,8 +143,8 @@ let flatten s = ( perform (
 		      
 		      dimension <-- current_dimension ;
 		      
-		      let compute_unk u yy yp = compute_fu yy yp (UnknownMap.find u flat_us) in
-		      let compute_eq  e yy yp = compute_feq yy yp (flatten_equation flat_us e) in
+		      let flatten_unk u = UnknownMap.find u flat_us in
+		      let flatten_eq = flatten_equation flat_us in
 		      let equalities = Array.of_enum (collect_equalities flat_us) in
 		      
 		      equations <-- all_equations ;
@@ -150,7 +153,7 @@ let flatten s = ( perform (
 
 		      let compute_res = residual equalities feqs in
 
-		      return {dimension ; compute_res ; compute_eq ; compute_unk ; u_mark ; e_mark}
+		      return {dimension ; compute_res ; compute_eq ; flatten_unk ; flatten_eq ; compute_unk ; u_mark ; e_mark}
 		) ) s 
 
 let is_valid layout = perform (
