@@ -111,6 +111,12 @@ module ObjectStateMonad =
 
     let return = yield
 
+    let (&.) l r = fun s -> let (s', _) = l s in r s'
+
+    let rec seq = function
+	[] -> fun s -> (s, ())
+      | m::ms -> m &. (seq ms)
+
     let rec repeat m = function
       | 0 -> m
       | n -> bind m (fun _ -> repeat m (n - 1))		  

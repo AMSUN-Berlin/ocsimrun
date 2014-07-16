@@ -62,6 +62,7 @@ and 'r flat_event_state = {
   memory : BitSet.t;
 
   effects : ('r, unit) event_state_monad list;
+  roots : float -> fvector -> fvector -> fvector -> int;
 
   marks : event_marks;
 }
@@ -139,6 +140,8 @@ let event_marks s = ( perform (
 			  return { clm ; rlm ; evm }
 		    )) s
 
+let roots t yy yp gi = 0
+
 let flatten s = ( perform (
 		      layout <-- flat_layout ;
 		      evs <-- event_map ;
@@ -157,7 +160,7 @@ let flatten s = ( perform (
 
 		      marks <-- event_marks ;
 
-		      let es = { layout ; relations = Vect.to_array frs; dependencies ; memory ; effects = [] ; marks } in
+		      let es = { layout ; relations = Vect.to_array frs; dependencies ; roots ; memory ; effects = [] ; marks } in
 
 		      return es
 		)) s	      
@@ -167,48 +170,48 @@ let validate es = perform (
 		      if (v) then return es else flatten  
 		    )
 
-let get s = ( perform (
-		  so <-- get state ;
-		  match so with 
-		    Some es -> validate es 
-		  | None -> flatten
-	    )) s
+let event_state s = ( perform (
+			  so <-- get state ;
+			  match so with 
+			    Some es -> validate es 
+			  | None -> flatten
+		    )) s
 
-let event_loop yy yp s = (s, () )
+type signal_src = SigClock of clock_handle | SigRel of relation_handle * bool
 
-let root_found i s = (s, () )
+let rec eval src index rel_state = function 
+    (* ever is some kind of special sample *)
+    EveryStep -> (match src with SigClock(_) -> (true, true) | _ -> (true, false) )
+	      
+  | Clock(s) -> ( match src with SigClock(r) -> (s = r, s = r) | _ -> (false, false) )
+		 
+  | Relation(s) -> ( let idx = index s in
+		     match src with SigRel(r, b) when s = r -> (b, (BitSet.mem rel_state idx) <> b)
+				  | _ -> (BitSet.mem rel_state idx, false) )
 
-let roots t yy yp gi = 0
+  | Or(s1, s2) -> let (a1, a2) = eval src index rel_state s1 in
+		  let (b1, b2) = eval src index rel_state s2 in
+		  (* minimal form computed by wolfram alpha, using <> to substitute for 'xor' *)
+		  (a1 || b1, (a1 && b2) <> (a2 && b1) <> (a2 && b2) <> a2 <> b2)
+
+  | And(s1, s2) -> let (a1, a2) = eval src index rel_state s1 in
+		   let (b1, b2) = eval src index rel_state s2 in
+		   (* minimal form computed by wolfram alpha, using <> to substitute for 'xor' *)
+		   (a1 || b1, (a1 && b2) <> (a2 && b1) <> (a2 && b2))
+
+let rec event_loop yy yp = perform (
+			   es <-- event_state ;
+			   match es.effects with
+			     [] -> return () ;
+			   | effects -> (seq effects) &. event_loop yy yp			   
+			 )
+
+let root_found i s = (s, ())
 
 let event_roots s = return ( roots ) s
 
 (*
 
-
-
-
-type signal_src = SigSmp of int | SigRel of int * bool
-
-let rec eval src rel_state = function 
-    (* ever is some kind of special sample *)
-    FEvr -> (match src with SigSmp(_) -> (true, true) | _ -> (true, false) )
-	      
-  | FSmp(s) -> ( match src with SigSmp(r) -> (s = r, s = r) | _ -> (false, false) )
-		 
-  | FRel(s) -> let v = BitSet.mem rel_state s in
-	       ( match src with SigRel(r, b) when s = r -> (b, v <> b)
-			      | _ -> (v, false)
-	       )
-
-  | FOr(s1, s2) -> let (a1, a2) = eval src rel_state s1 in
-		   let (b1, b2) = eval src rel_state s2 in
-		   (* minimal form computed by wolfram alpha, using <> to substitute for 'xor' *)
-		   (a1 || b1, (a1 && b2) <> (a2 && b1) <> (a2 && b2) <> a2 <> b2)
-
-  | FAnd(s1, s2) -> let (a1, a2) = eval src rel_state s1 in
-		    let (b1, b2) = eval src rel_state s2 in
-		    (* minimal form computed by wolfram alpha, using <> to substitute for 'xor' *)
-		    (a1 || b1, (a1 && b2) <> (a2 && b1) <> (a2 && b2))
 		       		       		       
 
 
