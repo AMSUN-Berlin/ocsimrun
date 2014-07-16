@@ -177,7 +177,7 @@ let event_state s = ( perform (
 			  | None -> flatten
 		    )) s
 
-type signal_src = SigClock of clock_handle | SigRel of relation_handle * bool
+type signal_src = SigClock of clock_handle | SigRel of int * bool
 
 let rec eval src index rel_state = function 
     (* ever is some kind of special sample *)
@@ -186,7 +186,7 @@ let rec eval src index rel_state = function
   | Clock(s) -> ( match src with SigClock(r) -> (s = r, s = r) | _ -> (false, false) )
 		 
   | Relation(s) -> ( let idx = index s in
-		     match src with SigRel(r, b) when s = r -> (b, (BitSet.mem rel_state idx) <> b)
+		     match src with SigRel(r, b) when idx = r -> (b, (BitSet.mem rel_state idx) <> b)
 				  | _ -> (BitSet.mem rel_state idx, false) )
 
   | Or(s1, s2) -> let (a1, a2) = eval src index rel_state s1 in
