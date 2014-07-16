@@ -379,6 +379,8 @@ let relation_handles s = using ( core |-- relations) Basic.handles s
 
 let get_relation h = using ( core |-- relations ) (Basic.get_el h)
 
+let relation_map s = using ( core |-- relations) Basic.store s
+
 let add_clock e = using ( core |-- clocks ) (Basic.add e)
 
 let del_clock h = using ( core |-- clocks ) (Basic.del h)

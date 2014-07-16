@@ -130,6 +130,8 @@ val relation_index : relation_handle -> ('r, int) core_monad
 
 val get_relation : relation_handle -> ('r, relation_record option) core_monad
 
+val relation_map : ('r, relation_record RelMap.t) core_monad
+
 val relation_handles : ('r, relation_handle BatEnum.t) core_monad
 
 val relation_mark : ('r, int) core_monad
@@ -147,6 +149,8 @@ type 'r event = {
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
 val add_event : 'r event -> ('r, event_handle) core_monad
+
+val get_event : event_handle -> ('r, 'r event option) core_monad
 
 val all_events : ('r, 'r event BatEnum.t) core_monad
 

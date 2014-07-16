@@ -57,6 +57,8 @@ constraint 'r = 'r state_trait
 and 'r flat_event_state = {
   layout : layout ;
   relations : flat_relation_record array;    
+  relation_handles : relation_handle array;
+  relation_indices : int RelMap.t;
 
   dependencies : dependencies;
   memory : BitSet.t;
@@ -123,15 +125,17 @@ let flat_layout s = ( perform (
 			  return layout
 		    )) s
 
-let flatten_relation layout rh frs = perform (
-					 o <-- get_relation rh ;
-					 return
-					   (match o with
-					      Some rel -> 
-					      let feq = layout.flatten_eq rel.base_rel in
-					      Vect.append { feq ; sign = rel.Core.sign } frs
-					    | None -> frs ) ;
-				       )
+let flatten_relation layout rh (hds, index_map, frs) = perform (
+							   o <-- get_relation rh ;
+							   return
+							     (match o with
+								Some rel -> 
+								let feq = layout.flatten_eq rel.base_rel in
+								(* append the handle, remember the handle's index and append flat-relation *)
+								(Vect.append rh hds, RelMap.add rh (Vect.length hds) index_map, 
+								 Vect.append { feq ; sign = rel.Core.sign } frs)
+							      | None -> (hds, index_map, frs) ) ;
+							 )
 
 let event_marks s = ( perform ( 
 			  evm <-- event_mark ;
@@ -149,7 +153,8 @@ let flatten s = ( perform (
 
 		      relations <-- relation_handles ;
 
-		      frs <-- fold_enum (flatten_relation layout) Vect.empty relations;
+		      (* calculate the flat-relation array, storing the handle-to-index map and the index-to-handle array *)
+		      (handles,index_map,frs) <-- fold_enum (flatten_relation layout) (Vect.empty, RelMap.empty, Vect.empty) relations;
 
 		      let memory = BitSet.create (Vect.length frs) in
 
@@ -160,7 +165,8 @@ let flatten s = ( perform (
 
 		      marks <-- event_marks ;
 
-		      let es = { layout ; relations = Vect.to_array frs; dependencies ; roots ; memory ; effects = [] ; marks } in
+		      let es = { layout ; relations = Vect.to_array frs; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
+				 dependencies ; roots ; memory ; effects = [] ; marks } in
 
 		      return es
 		)) s	      
@@ -206,7 +212,28 @@ let rec event_loop yy yp = perform (
 			   | effects -> (seq effects) &. event_loop yy yp			   
 			 )
 
-let root_found i s = (s, ())
+let collect_effects mem idx src eh effects = perform (
+						 o <-- get_event eh ;
+						 match o with Some ev ->
+							      let (v, c) = eval src idx mem ev.signal in
+							      if (v && c) then return (ev.Core.effects :: effects)
+							      else return effects 
+							    | _ -> return effects
+					       )
+
+let root_found i sign = perform (
+			    es <-- event_state ;
+			    let rel_index rh = RelMap.find rh es.relation_indices in
+			    let rh = es.relation_handles.(i) in
+			    let rel = es.relations.(i) in
+			    let v = sign = rel.sign in
+			    let src = SigRel(i, v) in
+			    let deps = (EvSet.enum (RelMap.find rh es.dependencies.on_relations)) in
+			    effects <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;
+			    let _ = BitSet.put es.memory v i in
+			    _ <-- put state (Some { es with effects = effects });
+			    return ()
+			  )
 
 let event_roots s = return ( roots ) s
 
