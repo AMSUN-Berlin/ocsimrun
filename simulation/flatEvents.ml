@@ -237,6 +237,17 @@ let root_found i sign = perform (
 
 let event_roots s = return ( roots ) s
 
+  
+let do_reset yy yp es i r = let v = (Float.signbit (es.layout.compute_eq yy yp r.feq)) && (r.sign = Lt) in
+			    BitSet.put es.memory v i
+
+let reset_roots yy yp = perform (
+			    es <-- event_state ;
+			    return (Array.iteri (do_reset yy yp es) es.relations)
+			  )
+  
+
+
 (*
 
 		       		       		       
