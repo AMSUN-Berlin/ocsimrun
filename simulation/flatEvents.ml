@@ -64,13 +64,13 @@ and 'r flat_event_state = {
   memory : BitSet.t;
 
   effects : ('r, unit) event_state_monad list;
-  roots : float -> fvector -> fvector -> fvector -> int;
+  roots : fvector -> fvector -> fvector -> int;
 
   marks : event_marks;
 }
 constraint 'r = 'r state_trait
 
-type event_roots = float -> fvector -> fvector -> fvector -> int
+type event_roots = fvector -> fvector -> fvector -> int
 
 open Monads.ObjectStateMonad
 
@@ -144,17 +144,15 @@ let event_marks s = ( perform (
 			  return { clm ; rlm ; evm }
 		    )) s
 
-let roots t yy yp gi = 0
-
 let flatten s = ( perform (
 		      layout <-- flat_layout ;
 		      evs <-- event_map ;
 		      let (stds, cds, rds) = Enum.fold collect_deps (eempty, ClockMap.empty, RelMap.empty) (EvMap.enum evs) in (* collect dependencies from events *)
 
-		      relations <-- relation_handles ;
+		      rhs <-- relation_handles ;
 
 		      (* calculate the flat-relation array, storing the handle-to-index map and the index-to-handle array *)
-		      (handles,index_map,frs) <-- fold_enum (flatten_relation layout) (Vect.empty, RelMap.empty, Vect.empty) relations;
+		      (handles,index_map,frs) <-- fold_enum (flatten_relation layout) (Vect.empty, RelMap.empty, Vect.empty) rhs;
 
 		      let memory = BitSet.create (Vect.length frs) in
 
@@ -165,7 +163,15 @@ let flatten s = ( perform (
 
 		      marks <-- event_marks ;
 
-		      let es = { layout ; relations = Vect.to_array frs; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
+		      let relations = Vect.to_array frs in
+
+		      let roots yy yp gi = 
+			let calc_root i r = 
+			  gi.{i} <- layout.compute_eq yy yp relations.(i).feq
+			in
+			(Array.iteri calc_root relations) ; 0 in
+
+		      let es = { layout ; relations; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
 				 dependencies ; roots ; memory ; effects = [] ; marks } in
 
 		      return es
