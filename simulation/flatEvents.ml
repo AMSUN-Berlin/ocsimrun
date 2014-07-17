@@ -235,7 +235,10 @@ let root_found i sign = perform (
 			    return ()
 			  )
 
-let event_roots s = return ( roots ) s
+let event_roots s = ( perform ( 
+			  es <-- event_state ;
+			  return ( es.roots ) 
+		    ) ) s
 
   
 let do_reset yy yp es i r = let v = (Float.signbit (es.layout.compute_eq yy yp r.feq)) && (r.sign = Lt) in
@@ -299,11 +302,6 @@ let reschedule state t gs = if (SampleQueue.size state.queue = 0) then
 
 let relations state = state.relations
   
-let do_update state f i r = let v = (Float.signbit (f r.flat_relation)) && (r.flat_sign < 0) in
-			    BitSet.put state.memory v i
-
-let update_mem state f = Array.iteri (do_update state f) state.relations
-
 open Lwt
 
 let next_state state f samples = 
