@@ -108,13 +108,11 @@ val add_clock : clock -> ('r, clock_handle) core_monad
 
 val del_clock : clock_handle -> ('r, unit) core_monad
 
+val get_clock : clock_handle -> ('r, clock option) core_monad
+
 val clock_mark : ('r, int) core_monad
 
 val clock_index : clock_handle -> ('r, int) core_monad
-
-val peek_next_time : ('r, float option) core_monad
-
-val advance_time : float -> ('r, clock_handle list) core_monad
 
 type relation_sign = Lt 
 		   | Gt

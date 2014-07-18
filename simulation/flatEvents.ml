@@ -48,6 +48,14 @@ type flat_relation_record = {
   sign : relation_sign ;
 }
 
+type sample_point = {
+  time : float ; clock : clock_handle
+}
+
+let sample_compare s1 s2 = Float.compare s1.time s2.time
+
+module SampleQueue = Heap.Make(struct type t = sample_point let compare = sample_compare end)
+
 type 'r state_trait = <get_event_state : 'r flat_event_state option; set_event_state : 'r flat_event_state option -> 'r; ..> as 'r
 constraint 'r = 'r Core.state_trait
 
@@ -66,7 +74,9 @@ and 'r flat_event_state = {
   effects : ('r, unit) event_state_monad list;
   roots : fvector -> fvector -> fvector -> int;
 
-  marks : event_marks;
+  queue : SampleQueue.t ;
+
+  marks : event_marks ;
 }
 constraint 'r = 'r state_trait
 
@@ -172,7 +182,7 @@ let flatten s = ( perform (
 			(Array.iteri calc_root relations) ; 0 in
 
 		      let es = { layout ; relations; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
-				 dependencies ; roots ; memory ; effects = [] ; marks } in
+				 dependencies ; roots ; memory ; queue = SampleQueue.empty ; effects = [] ; marks } in
 
 		      return es
 		)) s	      
@@ -254,67 +264,56 @@ let reset_roots yy yp = perform (
 			    es <-- event_state ;
 			    return (Array.iteri (do_reset yy yp es) es.relations)
 			  )
+
+let next_clock s = ( perform (
+			 es <-- event_state ;
+			 return (
+			   if SampleQueue.size es.queue = 0 then None
+			   else (Some (SampleQueue.find_min es.queue).time) )
+		   ) ) s
   
+let sample yy yp ch = function 
+    LinearClock(a, b) -> { time = yy.{0} *. a +. b ; clock = ch }
 
+let schedule yy yp ch = perform (
+			    es <-- event_state ;
+			    o <-- get_clock ch ;
+			    match o with Some(clock) ->					      
+					 let sp = sample yy yp ch clock in
+                               		 let queue' = SampleQueue.insert es.queue sp in
+					 put state (Some {es with queue = queue'})
+				       | None -> return ()
+			  )
 
-(*
-
-		       		       		       
-
-
-let collect state src effs e = 
-  let (v', c) = eval src state.memory e.flat_signal in
-  if v' && c then (* evaluates to true and has changed *)
-    e.flat_effects::effs
-  else 
-    effs
-
-(** walk over all events and check whether the relation change did actually change the value of the event signal to true *)
-let relation_fired state i sign f gs = let r = state.relations.(i) in
-				       let v = sign = r.flat_sign in
-				       Printf.printf "Relation %d %b -> %b\n" i (BitSet.mem state.memory i) v ;
-				       let src = SigRel(i, v) in
-				       let effects = Array.fold_left (collect state src) gs state.flat_events in
-				       Printf.printf "Yields %d effect-generators\n" (List.length effects) ;
-				       (* collect effects _before_ storing the change *)
-				       BitSet.put state.memory v i ; effects
-								    
-let next_step state = if (SampleQueue.size state.queue = 0) then None else Some (SampleQueue.find_min state.queue).time
-  
-let fire_sample state effs i = let src = SigSmp(i) in
-				 Array.fold_left (collect state src) effs state.flat_events
-
-let rec do_reschedule effs state samples t =
-  if (SampleQueue.size state.queue = 0) then (effs, state, samples) else
-    let s = (SampleQueue.find_min state.queue) in
+let rec advance_queue t queue clocks =
+  if (SampleQueue.size queue = 0) then (queue, clocks) else
+    let s = (SampleQueue.find_min queue) in
     if s.time <= t then (
-      let effs' = fire_sample state effs s.sample in
-      do_reschedule effs' {state with queue = SampleQueue.del_min state.queue} (s::samples) t
+      advance_queue t (SampleQueue.del_min queue) (s.clock :: clocks)
     ) else 
-      (effs, state, samples)
-    
-let relations_for_unknown state = function
-    State(i,_) -> state.dependencies.on_states.(i)
-  | Algebraic(i) -> state.dependencies.on_states.(i)
-  | LowState(i) -> state.dependencies.on_states.(i)
-  | Derivative i -> state.dependencies.on_derivatives.(i)
+      (queue, clocks)
 
+let fire_clock yy yp ch = perform (
+			      es <-- event_state ;
+			      let deps = (EvSet.enum (ClockMap.find ch es.dependencies.on_clocks)) in
+			      let src = SigClock(ch) in
+			      let rel_index rh = RelMap.find rh es.relation_indices in
 
-let reschedule state t gs = if (SampleQueue.size state.queue = 0) then 
-			      (* when our queue is _empty_ we need to fire a dummy event to get the EVER effects *)
-			      (* TODO: introduce real dummy source *)
-			      (fire_sample state gs (-1), state, []) 
-			    else do_reschedule gs state [] t
+			      effects' <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;			      
+			      _ <-- schedule yy yp ch ;
+			      put state (Some {es with effects = effects'})
+			    )
 
-let relations state = state.relations
-  
-open Lwt
-
-let next_state state f samples = 
-  let enqueue_sample queue point = (state.samples.(point.sample).schedule f) >>=
-				     (* we evaluate the samples on demand and update the corresponding point *)
-				     function Some sample' -> state.samples.(point.sample) <- sample' ; queue >|= SampleQueue.add {point with time = sample'.next_t} 
-					    | None -> queue in
-  
-  (List.fold_left enqueue_sample (return state.queue) samples) >|= fun queue -> {state with queue=queue}
- *)
+let rec fire_clocks yy yp = function 
+    [] -> return ()
+  | ch :: clocks -> perform (
+			_ <-- fire_clock yy yp ch ;
+			fire_clocks yy yp clocks ;
+		      )
+			    
+let reschedule yy yp = perform (
+			   es <-- event_state ;
+			   let (queue', active_clocks) = advance_queue yy.{0} es.queue [] in
+			   _ <-- put state (Some {es with queue = queue'}) ;
+			   fire_clocks yy yp active_clocks ;
+			 )

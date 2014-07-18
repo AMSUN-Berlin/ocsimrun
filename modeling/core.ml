@@ -100,14 +100,6 @@ type signal = Or of signal * signal
 
 type 'a handle_store = { count : int ; store : 'a IntMap.t } 
 
-type sample_point = {
-  time : float ; clock : clock_handle
-}
-
-let sample_compare s1 s2 = Float.compare s1.time s2.time
-
-module SampleQueue = Heap.Make(struct type t = sample_point let compare = sample_compare end)
-
 type 'r event = {
   signal : signal ;
   effects : ('r, unit) core_monad ;
@@ -124,8 +116,6 @@ and 'r core_state_t = {
   clocks : clock handle_store;
 
   relations : relation_record handle_store;
-
-  clock_queue : SampleQueue.t ;
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
@@ -281,9 +271,6 @@ let empty_core_state () = {
   clocks = empty_handle_store () ;
 
   relations = empty_handle_store () ;
-
-  clock_queue = SampleQueue.empty ;
-
 }
 
 class core_state = object(self : 'r)
@@ -301,42 +288,6 @@ let relations = { get = (fun a -> a.relations) ; set = fun a b -> {b with relati
 let clocks = { get = (fun a -> a.clocks) ; set = fun a b -> {b with clocks = a} }
 
 let events = { get = (fun a -> a.events) ; set = fun a b -> {b with events = a} }
-
-module QueueState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1} end
-module ClockQueue = struct 
-  include Monads.MakeStateMonad(QueueState)
-
-  let peek = perform (
-		 q <-- get ;
-		 return (if (SampleQueue.size q = 0) then None else Some (SampleQueue.find_min q).time)
-	       )
-
-
-  let rec _pop t q cs = if SampleQueue.size q = 0 then (q, cs) 
-			else
-			  let n = (SampleQueue.find_min q) in
-			  if n.time <= t then (
-			    let q' = SampleQueue.del_min q in 
-			    (q', n.clock :: cs)
-			  ) else
-			    (q, cs)
-
-  let push t ch = perform (
-		      q <-- get ;
-		      _ <-- put (SampleQueue.add {time=t; clock=ch} q) ;
-		      return () 
-		    )
-
-  let pop t = perform (
-		      q <-- get ;
-		      let (q', cs) = _pop t q [] in
-		      _ <-- put q' ;
-		      return cs 
-		    )
-			  
-end
-
-let clock_queue = { get = (fun a -> a.clock_queue) ; set = fun b a -> {a with clock_queue = b} }
 
 open Monads.ObjectStateMonad
 open Lens.Infix 
@@ -390,19 +341,6 @@ let clock_index h = using ( core |-- clocks ) (Basic.index_of h)
 let get_clock h = using ( core |-- clocks ) (Basic.get_el h)
 
 let clock_mark s = using (core |-- clocks) Basic.mark s
-
-let reschedule t ch = perform (
-			  c <-- get_clock ch ;
-			  let t' = match c with
-			      Some LinearClock(a, b) -> t*.a +. b 
-			  in
-			  _ <-- (using (core |-- clock_queue) (ClockQueue.push t' ch)) ;
-			  return t';
-			)
-
-let advance_time t = using (core |-- clock_queue) (ClockQueue.pop t)
-
-let peek_next_time s = using (core |-- clock_queue) ClockQueue.peek s
 
 let add_event e = using (core |-- events) (Basic.add e)
 
