@@ -1,3 +1,6 @@
+.#*
+*~
+
 *.annot
 *.cmo
 *.cma
@@ -7,3 +10,18 @@
 *.cmx
 *.cmxs
 *.cmxa
+
+#oasis artifacts
+_build
+*.mllib
+*.mldylib
+*.clib
+META
+setup.log
+setup.ml
+setup.data
+README.txt
+AUTHORS.txt
+INSTALL.txt
+configure
+Makefile
