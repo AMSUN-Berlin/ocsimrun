@@ -68,6 +68,8 @@ constraint 'r = 'r state_trait
 
 type ('r, 'a) core_monad = 'r state_trait -> ('r state_trait * 'a)
 
+val time : unknown 
+
 val new_unknown : ('r, unknown) core_monad
 
 val all_unknowns : ('r, unknown BatEnum.t) core_monad
