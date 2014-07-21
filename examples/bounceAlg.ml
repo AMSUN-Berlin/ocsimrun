@@ -28,54 +28,56 @@
 
 open Batteries
 
-open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
-open Events
-open Events.Monadic
+open Core
 open Recon
 
 open Monads.ObjectStateMonad
 
-open Models
-
-let bounce_ball out s = ( 
+let bounce_ball out = 
   perform (
       h <-- new_unknown ;
       v_next <-- new_unknown ;
+      
+      v <-- der h ;
+      a <-- der v ;
 
-      _ <-- add_equation ( Linear ( [| der h ; v_next |], [| 0.7 ; 1. |], 0. ) ) ;
-      _ <-- add_equation ( Linear ( [| der(der(h)) |], [| 1. |], 9.81 ) ) ;
+      _ <-- start (h, 10.) ;
 
-      let h_start = {
-	signal = start_signal ;
-	effects = fun _ -> [Unknown (h, 10.) ] ;
-      } in
+      _ <-- add_equation ( Linear ( [| v ; v_next |], [| 0.7 ; 1. |], 0. ) ) ;
+      _ <-- add_equation ( Linear ( [| a |], [| 1. |], 9.81 ) ) ;
 
       let h_observe = {
 	signal = EveryStep ;
-	effects = fun f -> let _ = write_entry out [ f time ; f v_next ; f h ; f (der h) ; f (der (der h)) ] in [Nothing]
+	effects = perform ( 
+		      t_ <-- sim_value_of time ;
+		      v_ <-- sim_value_of v;
+		      vn_ <-- sim_value_of v_next ;
+		      a_ <-- sim_value_of a ;
+		      h_ <-- sim_value_of h ;
+		      return (ignore (write_entry out [ t_ ; vn_ ; h_ ; v_ ; a_ ]))
+		    )
       } in
       
-      _ <-- add_event h_start ;
       _ <-- add_event h_observe ;
 
+      contact <-- add_relation { base_rel = Linear([| h |], [| 1. |], 0.) ; sign = Lt } ;
+
       let bounce = {
-	signal = continuous (Linear([| h |], [| 1. |], 0.)) (-1) ;
-	effects = fun values -> Printf.printf "Setting v from %f to %f\n" (values (der h)) (values (v_next)) ; 
-				[Unknown ((der h), (values (v_next)))]
+	signal = Relation contact ;
+	effects = perform ( 
+		      vn_ <-- sim_value_of v_next ;
+		      _ <-- sim_set_value v vn_ ;		      
+		      return () 
+			  )
       } in
       
       _ <-- add_event bounce ;
 
       return (object method h = h end)
-)) s
+)
 
 class bounce_state = object (self : 'a)
-  inherit Unknowns.Monadic.state_container 
-  inherit Equations.Monadic.state_container
-  inherit ['a] Events.Monadic.state_container
+  inherit Core.core_state
 end
 
 open Sim
@@ -84,9 +86,9 @@ let () =
   let outfile = File.open_out "results.wall" in
   
   ignore (write_header outfile ["time"; "vnext"; "h"; "h/dt"; "h/dt^2" ]) ;
-  
+  (*
   let mode = instantiate (bounce_ball outfile) (new bounce_state) in
     
   let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
 
- ignore (Lwt_main.run sim)
+ ignore (Lwt_main.run sim)*)
