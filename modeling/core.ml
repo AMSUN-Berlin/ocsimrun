@@ -103,6 +103,28 @@ type signal = Or of signal * signal
 
 type 'a handle_store = { count : int ; store : 'a IntMap.t } 
 
+type sim_interface_t = {
+  value_of : unknown -> float ;
+  set_value : unknown -> float -> unit;
+}
+
+module SimState = struct type t = sim_interface_t 
+			 let empty () = { value_of = (fun _ -> raise (Failure "No simulation setup"))  ; 
+					  set_value = (fun _ _ -> raise (Failure "No simulation setup")) } 
+		  end
+module Sim = struct 
+  include Monads.MakeStateMonad(SimState)
+  let value_of u = perform (
+		       s <-- get ;
+		       return (s.value_of u) ;
+		     )
+  let set_value u f = perform (
+			  s <-- get ;
+			  return (s.set_value u f) ;
+			)
+
+end
+
 type 'r event = {
   signal : signal ;
   effects : ('r, unit) core_monad ;
@@ -119,6 +141,8 @@ and 'r core_state_t = {
   clocks : clock handle_store;
 
   relations : relation_record handle_store;
+
+  sim_interface : sim_interface_t;
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 
@@ -287,6 +311,12 @@ let empty_core_state () = {
   clocks = empty_handle_store () ;
 
   relations = empty_handle_store () ;
+
+  (* a simple mock for the simulation interface *)
+  sim_interface = {
+    value_of = (fun _ -> Float.nan) ;
+    set_value = (fun _ _ -> ()) ;
+  }
 }
 
 class core_state = object(self : 'r)
@@ -305,8 +335,16 @@ let clocks = { get = (fun a -> a.clocks) ; set = fun a b -> {b with clocks = a} 
 
 let events = { get = (fun a -> a.events) ; set = fun a b -> {b with events = a} }
 
+let simulation = { get = (fun a -> a.sim_interface) ; set = fun a b -> {b with sim_interface = a} }
+
 open Monads.ObjectStateMonad
 open Lens.Infix 
+
+let sim_value_of u = using (core |-- simulation) (Sim.value_of u)
+
+let set_sim_interface i = using (core |-- simulation) (Sim.put i)
+
+let sim_set_value u f = using (core |-- simulation) (Sim.set_value u f)
 
 let new_unknown s = (using (core |-- unknowns) Unknowns.new_unknown) s
 

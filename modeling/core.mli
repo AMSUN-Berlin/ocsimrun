@@ -148,9 +148,9 @@ type signal = Or of signal * signal
 
 type 'r event = {
   signal : signal ;
-  effects : ('r, unit) core_monad ;
+  effects : ('r, unit) core_monad;
 }
-constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
+constraint 'r = 'r state_trait
 
 val add_event : 'r event -> ('r, event_handle) core_monad
 
@@ -165,6 +165,17 @@ val event_map : ('r, 'r event EvMap.t) core_monad
 val del_event : event_handle -> ('r, unit) core_monad
 
 val event_mark : ('r, int) core_monad
+
+type sim_interface_t = {
+  value_of : unknown -> float ;
+  set_value : unknown -> float -> unit;
+}
+
+val sim_value_of : unknown -> ('r, float) core_monad
+
+val sim_set_value : unknown -> float -> ('r, unit) core_monad
+
+val set_sim_interface : sim_interface_t -> ('r, unit) core_monad
 
 class core_state : object('r)
   constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
