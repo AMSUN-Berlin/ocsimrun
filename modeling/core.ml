@@ -36,6 +36,8 @@ type unknown = {
   u_der : int;
 }
 
+type 'a attribute = unknown * 'a
+
 type equation_handle = int
 
 type event_handle = int
@@ -57,6 +59,7 @@ module UnknownMap = Map.Make(struct type t = unknown let compare = unknown_compa
 type unknown_state_t = {
   unknown_count : int ;
   unknown_set : UnknownSet.t ;
+  start_values : float UnknownMap.t ;
 }
 
 module IntSet = Set.Make(Int)
@@ -134,40 +137,41 @@ let time = {u_idx = 0; u_der = 0}
 
 open Lens
 
-module UnknownState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1} end
+module UnknownState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1 ; start_values = UnknownMap.empty} end
 module Unknowns = struct 
   include Monads.MakeStateMonad(UnknownState)
 
   let unknowns = { get = (fun a -> a.unknowns) ; set = fun b a -> {a with unknowns = b} }
 
   let new_unknown = perform (
-			{unknown_count ; unknown_set} <-- get ;
+			{unknown_count ; unknown_set ; start_values } <-- get ;
 			let u = {u_idx = unknown_count; u_der = 0} in
-			_ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set } ;
+			_ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set ; start_values } ;
 			return u 
 		      )
 
   let all_unknowns = perform (
-			 {unknown_count ; unknown_set } <-- get ;
+			 {unknown_set} <-- get ;
 			 return (UnknownSet.enum unknown_set)
 		       )
 		      
-  let del_unknown u = perform
-      {unknown_count ; unknown_set} <-- get ;
-      _ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set } ;
-      return ()
+  let del_unknown u = perform (
+			  {unknown_count ; unknown_set ; start_values } <-- get ;
+			  _ <-- put { unknown_count = unknown_count + 1; unknown_set = UnknownSet.add u unknown_set ; start_values = UnknownMap.remove u start_values } ;
+			  return ()
+			)
 
   let unknown_index u = perform (
-    {unknown_count; unknown_set} <-- get ;
+    {unknown_set} <-- get ;
     match UnknownSet.split_opt u unknown_set with
     | (l, Some _, _) -> return (UnknownSet.cardinal l)
     | (_, None, _) -> raise (Failure (Printf.sprintf "The unknown <%d,%d> is not element of the current model." u.u_idx u.u_der))
   )
 
   let der {u_idx;u_der} = perform
-      {unknown_count ; unknown_set} <-- get ;
+      {unknown_count ; unknown_set ; start_values } <-- get ;
       let du = {u_idx;u_der=u_der+1} in
-      _ <-- put { unknown_count ; unknown_set = UnknownSet.add du unknown_set } ;
+      _ <-- put { unknown_count ; unknown_set = UnknownSet.add du unknown_set ; start_values } ;
       return du
 
   let der_order u = perform
@@ -181,6 +185,18 @@ module Unknowns = struct
   let mark = perform 
 	       { unknown_count ; unknown_set} <-- get ;
 	     return unknown_count
+
+  let start_values s = ( perform (
+			     state <-- get ;
+			     return (UnknownMap.enum state.start_values) ;
+		       ) ) s
+
+  let set_start_attr (u, f) = perform (
+				  state <-- get ;
+				  _ <-- put {state with start_values = UnknownMap.add u f state.start_values} ;
+				  return () ;
+				)
+				 
 end
 
 let unknowns = { get = (fun a -> a.unknowns) ; set = fun a b -> {b with unknowns = a} }
@@ -299,6 +315,10 @@ let all_unknowns s = (using (core |-- unknowns) Unknowns.all_unknowns) s
 let unknown_index u = using (core |-- unknowns) (Unknowns.unknown_index u)
 
 let unknown_mark s = using (core |-- unknowns) Unknowns.mark s
+
+let start_values s = using (core |-- unknowns) Unknowns.start_values s
+
+let start attr = using (core |-- unknowns) (Unknowns.set_start_attr attr)
 
 let der_order u = using (core |-- unknowns) (Unknowns.der_order u)
 

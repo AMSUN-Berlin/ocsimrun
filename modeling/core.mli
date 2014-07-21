@@ -80,6 +80,12 @@ val unknown_index : unknown -> ('r, int) core_monad
 
 val unknown_mark : ('r, int) core_monad
 
+type 'a attribute = unknown * 'a
+
+val start_values : ('r, float attribute BatEnum.t) core_monad 
+
+val start : float attribute -> ('r, unit) core_monad
+
 type equation = Equality of unknown * unknown  (** equality constraint, i.e. x = y *)
 	      | Linear of (unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 	      | General of (unknown array) * (stmt array)  (** general, non-linear equation *)
@@ -166,4 +172,3 @@ class core_state : object('r)
   method get_core : 'r core_state_t
   method set_core : 'r core_state_t -> 'r
 end
-
