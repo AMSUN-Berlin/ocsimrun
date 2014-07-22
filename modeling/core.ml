@@ -118,6 +118,13 @@ module Sim = struct
 		       s <-- get ;
 		       return (s.value_of u) ;
 		     )
+
+  let values_of us = perform (
+			 s <-- get ;
+			 return (List.map (fun u -> s.value_of u) us) ;
+		       )
+
+
   let set_value u f = perform (
 			  s <-- get ;
 			  return (s.set_value u f) ;
@@ -341,6 +348,8 @@ open Monads.ObjectStateMonad
 open Lens.Infix 
 
 let sim_value_of u = using (core |-- simulation) (Sim.value_of u)
+
+let sim_values_of us = using (core |-- simulation) (Sim.values_of us)
 
 let set_sim_interface i = using (core |-- simulation) (Sim.put i)
 

@@ -175,6 +175,8 @@ type sim_interface_t = {
 
 val sim_value_of : unknown -> ('r, float) core_monad
 
+val sim_values_of : unknown list -> ('r, float list) core_monad
+
 val sim_set_value : unknown -> float -> ('r, unit) core_monad
 
 val set_sim_interface : sim_interface_t -> ('r, unit) core_monad

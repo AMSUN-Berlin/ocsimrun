@@ -27,40 +27,34 @@
  *)
 
 open Batteries
-
-open Unknowns
-open Unknowns.Monadic
-open Equations
-open Equations.Monadic
-open Events
-open Events.Monadic
-
+open Core
 open Monads.ObjectStateMonad
-
-open Models
 open Recon
 
 let sawtooth out s = ( 
   perform (
       x <-- new_unknown ;
-      _ <-- add_equation ( Linear ( [| der(x) |], [| 1. |], 1. ) ) ;
+      dx <-- der x ;
+      _ <-- add_equation ( Linear ( [| dx |], [| 1. |], 1. ) ) ;
 
-      let x_start = {
-	signal = start_signal ;
-	effects = fun _ -> [Unknown (x, 1.) ] ;
-      } in
+      _ <-- start (x, 1.) ;
+
 
       let x_observe = {
 	signal = EveryStep ;
-	effects = fun f -> let _ = write_entry out [ f time ; f x ; ] in [Nothing]
+	effects = perform ( 
+		      vals <-- sim_values_of [ time; x ] ;
+		      return (ignore (write_entry out vals) );
+		    ) 
       } in
       
-      _ <-- add_event x_start ;
       _ <-- add_event x_observe ;
 
+      top <-- add_relation { base_rel = Linear([| x |], [| 1. |], 0.); sign = Lt } ;
+
       let reinit = {
-	signal = continuous (Linear([| x |], [| 1. |], 0.)) (-1) ;
-	effects = fun _ -> [Unknown (x, 1.)]
+	signal = Relation top ;
+	effects = sim_set_value x 1. ;
       } in
       
       _ <-- add_event reinit ;
@@ -71,9 +65,7 @@ let sawtooth out s = (
 open Sim
 
 class sawtooth_state = object (self : 'a)
-  inherit Unknowns.Monadic.state_container 
-  inherit Equations.Monadic.state_container
-  inherit ['a] Events.Monadic.state_container
+  inherit Core.core_state
 end
 
 let () = 
@@ -81,8 +73,11 @@ let () =
   
   write_header outfile ["time"; "x" ] ;
 
+  ()
+  (*
   let mode = instantiate (sawtooth outfile) (new sawtooth_state) in
 
   let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
 
   ignore (Lwt_main.run sim)
+   *)
