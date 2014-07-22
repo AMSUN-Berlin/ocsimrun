@@ -120,6 +120,11 @@ let collect_deps (stds, cds, rds) (eh,ev) =
 
   in sig_collect_deps (stds, cds, rds) ev.signal
 
+let effects_exist s = ( perform (
+			   so <-- get state ;
+			   return (match so with Some s -> s.effects = [] | None -> false)
+		     ) ) s
+
 let is_valid s = perform (
 		     c <-- clock_mark ;
 		     e <-- event_mark ;
@@ -250,6 +255,11 @@ let root_found i sign = perform (
 			    _ <-- put state (Some { es with effects = effects });
 			    return ()
 			  )
+
+let event_array_size s = ( perform (
+			       es <-- event_state ;
+			       return (Array.length es.relations) 
+			 ) ) s
 
 let event_roots s = ( perform ( 
 			  es <-- event_state ;

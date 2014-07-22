@@ -31,7 +31,8 @@ open Bigarray
 
 type fvector = (float, float64_elt, c_layout) Array1.t
 
-type flat_unknown
+(** Distinguish between a yy or yp entry *)
+type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
 type flat_equation
 

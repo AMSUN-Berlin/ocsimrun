@@ -30,6 +30,13 @@ open Core
 open Monads
 open Batteries
 
+type experiment = {
+  rtol : float ;
+  atol : float ;
+  start : float ;
+  stop : float;
+}
+
 module type SimEngine = sig
     type simulation_state
 
@@ -40,17 +47,10 @@ module type SimEngine = sig
     constraint 'r = 'r state_trait
 
     (* TODO: introduce result type *)
-    val init : ('r, int) sim_monad
+    val init : experiment -> ('r, int) sim_monad
 
-    val step : ('r, int) sim_monad
+    val perform_step : float -> ('r, float) sim_monad
 end
-
-type experiment = {
-  rtol : float ;
-  atol : float ;
-  start : float ;
-  stop : float;
-}
 
 type result = Success | Error of int * string
 
@@ -65,9 +65,8 @@ module SundialsImpl : SimEngine = struct
   let last arr = arr.((Array.length arr) - 1)
 
   type simulation_state = {
-    t : float;
-    yy : fvector;
-    yp : fvector;
+    ida : ida_solver;
+    num_state : numeric_state;
   }	     
 
   type 'r state_trait = <get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r
@@ -78,157 +77,130 @@ module SundialsImpl : SimEngine = struct
 
   let state = { get = (fun a -> a#get_sim_state) ; set = fun a b -> b#set_sim_state a }
 
-  let step s = ( perform ( 
-		     sim <-- get state ;
-		     evl <-- FlatEvents.flat_layout ;
-		     return 0
-	       )) s
+  let rec handle_root gs i = if i < Array.length gs then (
+			       match gs.(i) with
+				 1 -> root_found i Gt &. handle_root gs (i+1)
+			       | -1 -> root_found i Lt &. handle_root gs (i+1)
+			       | 0 -> handle_root gs (i+1)
+			     ) else return ()
 
-  let init s = ( perform (
+  let perform_reinit sim t = perform (
+				 return t
+			       )
+
+  let perform_step t  = perform ( 
+				 sim <-- get state ;
+				 event_dim <-- event_array_size ;
+
+				 let step = {tret = t ; tout = t} in
+
+				 let ret = ida_solve sim.ida step ida_normal in
+		     
+				 let _ = check_flag "IDASolve" ret ;
+					 Printf.printf "Sim-time: %f\n%!" step.tret 
+				 in
+				 
+				 let rootsfound = Array.create event_dim 0 in
+
+				 _ <-- (if ret = ida_root_return then 
+					 let _ = check_flag "IDAGetRootInfo" (ida_get_root_info sim.ida rootsfound) in
+					 handle_root rootsfound 0 ;
+				       else
+					 return () );				 				 
+
+				 _ <-- reschedule sim.num_state.yy sim.num_state.yp ;
+
+				 reinit_needed <-- effects_exist ;
+
+				 _ <-- event_loop sim.num_state.yy sim.num_state.yp ;
+
+				 if reinit_needed then ( 
+				   perform_reinit sim step.tout
+				 ) else				    
+				   return step.tout
+			     )
+
+  let init exp = perform (
+		     layout <-- FlatEvents.flat_layout ;
+
+		     let dim = layout.dimension in
+		     
+		     let id = fvector dim in
+		     let yy = fvector dim in
+		     let yp = fvector dim in
+		     let res = fvector dim in
+
+		     let _ = (
+		       (* INIT HERE *)
+		       yy.{0} <- exp.start ;
+		       yp.{0} <- 1.0 ) in
+		     
+		     (* Set remaining input parameters. *)
+		     let rtol = 0. in
+		     let atol = 1.0e-3 in
+
+		     (* Call IDACreate and IDAMalloc to initialize solution *)
+		     let ida = ida_create () in
+		     
+		     unknowns <-- all_unknowns ;
+
+		     let set_id = function 
+		       | Algebraic _ | LowState _  -> ()
+		       | State(_,yp) -> id.{yp} <- 1.
+		       | Derivative i -> id.{i} <- 1. in     
+
+		     let _ = id.{0} <- 1. ; Enum.iter (set_id % layout.flatten_unk) unknowns in
+
+		     let _ = Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) in
+		     
+		     let _ = check_flag "IDASetId" (ida_set_id ida id) in
+		     		     
+		     event_dim <-- event_array_size ; 
+		     
+		     let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
+		     
+		     event_roots <-- event_roots ;
+
+		     let num_state = { t = exp.start ; Ida.yy ; yp ; res } in
+
+		     let residual {t; yy; yp; res} = 
+		       yy.{0} <- t ; 
+		       layout.compute_res yy yp res 
+		     in
+
+		     let event_roots {e_t; e_y; e_yp; e_gi} =
+		       e_y.{0} <- e_t;
+		       event_roots e_y e_yp e_gi 
+		     in
+
+		     let ida_ctxt = { residual ; state = num_state ; event_roots ; event_state = ida_event_state } ;		     
+		     in 
+		     let _ =
+				    check_flag "IDAInit" (ida_init ida ida_ctxt) ;
+
+				    check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
+
+				    check_flag "IDADense" (ida_dense ida dim) ;
+		     in
+
+		     (* Call IDACalcIC to correct the initial values. *)
+		     let minstep = exp.stop /. 500. in
+		     
+		     let _ = 
+		       Printf.printf "Initialization...\n%!";
+		       check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (exp.start +. minstep)) ;
+		     in
+
+		     _ <-- put state { ida ; num_state } ;
+			       
 		     return 0
-	       )) s
+		   )
 
 (*
-  let simulate m exp = 
-    let us =  m.unknowns 
-    and evs = List.of_enum (IntMap.values m.events)
-    and eqs = m.equations in
-    
-    Printf.printf "# Simulating %d equations and %d unknowns\n%!" (Enum.count (IntMap.enum eqs)) (Enum.count (UnknownSet.enum us)) ;
 
-    let flatDAE = flatten_model us eqs evs in
-    let dim = flatDAE.layout.dimension in
-
-    (* the last entry in the last layout-row returns the size of the yy-vector *)
-    Printf.printf "Dimension: %d\n" flatDAE.layout.dimension ;
-
-    let yy = flatDAE.yy_vec in
-    let yp = flatDAE.yp_vec in
-    let id = fvector dim in
-    let res = fvector dim in
-    let num_state = { t = exp.start; yp = yp; yy = yy; res = res } in
-    let eval_unknown u = compute_fu yy yp (flatten_unknown flatDAE.layout u) in
-    let eval_eq = compute_feq yy yp in
-
-    let prestart u = 0. in
-
-    let residual {t;yy;yp;res} = residual flatDAE.layout.equalities flatDAE.flat_equations yy yp res in
-
-    (* first, set all unknowns to 0 *)
-    let pre_event_state = flatDAE.flat_event_state in
-
-    let (start_effects, event_state, _) = reschedule pre_event_state exp.start [] in
-
-    (* handle all pre-init events *)
-    let handle_start_effect = function Unknown(u, v) -> update_fu yy yp v (flatten_unknown flatDAE.layout u) | _ -> () in
-    List.iter (fun gen -> let effs = gen eval_unknown in List.iter handle_start_effect effs) start_effects;
-
-    (* update event memory, since start events might change it *)
-    update_mem event_state eval_eq;
-
-    (* INIT HERE *)
-    yy.{0} <- exp.start ;
-    yp.{0} <- 1.0 ;
-
-    let event_roots {e_t;e_y;e_yp;e_gi} = 
-      let eval_eq = compute_feq e_y e_yp in
-
-      let relations = relations event_state in
-      for i = 0 to (Array.length relations) - 1 do	
-	e_gi . {i} <- eval_eq relations.(i).flat_relation
-      done ;
-      0
-    in
-
-    Printf.printf "# Got %d continuous-time relations\n" (Array.length (relations event_state));
-
-    (* Set remaining input parameters. *)
-    let rtol = 0. in
-    let atol = 1.0e-3 in
-
-    (* Call IDACreate and IDAMalloc to initialize solution *)
-    let ida = ida_create () in
-    
-    let set_eq_id {yy_index;yp_index} = id.{yp_index} <- 1. in
-    let set_id = function 
-      | Algebraic _ | LowState _ | State(_,_) -> ()
-      | Derivative i -> id.{i} <- 1. in     
-    let set_uk_id f_eq = Array.iter set_id (depends f_eq) in
-
-    id.{0} <- 1. ; 
-    Array.iter set_eq_id flatDAE.layout.equalities ;
-    Array.iter set_uk_id flatDAE.flat_equations ;
-
-    Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) ;
-    check_flag "IDASetId" (ida_set_id ida id) ;
-    
-    let event_dim = Array.length (relations event_state) in
-
-    let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
-  
-    let ida_ctxt = { residual = residual ; state = num_state ; event_roots ; event_state = ida_event_state } in
-    
-    check_flag "IDAInit" (ida_init ida ida_ctxt) ;
-
-    check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
-
-    check_flag "IDADense" (ida_dense ida dim) ;
- 
-    (* Call IDACalcIC to correct the initial values. *)
-    let minstep = exp.stop /. 500. in
-
-    Printf.printf "Initialization...\n%!";
-    check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (exp.start +. minstep)) ;
-
-    let rootsfound = Array.create event_dim 0 in
-
-    let apply_effect reinit = function 
-      | Unknown (u, v) -> update_fu yy yp v (flatten_unknown flatDAE.layout u) ; true
-      | Nothing -> reinit
-      | _ -> reinit (* no other effects allowed for now *)
-    in 
-    
-    let event_loop e_state gs = 
-      List.fold_left (fun reinit -> (fun gen -> List.fold_left apply_effect reinit (gen eval_unknown))) false gs
-    in
-
-    let event_loop_start e_state ret t = 
-      let handle_root gs i n = if n != 0 then (
-				 Printf.printf "root: %d, sign: %d\n" i n ;
-				 relation_fired e_state i n eval_eq gs
-			       ) else
-				 gs
-      in
-      let (gs', e_state', samples) = reschedule e_state t
-						( if ret = ida_root_return then (
-						    check_flag "IDAGetRootInfo" (ida_get_root_info ida rootsfound) ;
-						    Array.fold_lefti handle_root [] rootsfound	 	 
-						  ) else []
-				       )
-      in (e_state', event_loop e_state' gs', samples)
-    in
 
     (* Loop over output times, call IDASolve. *)
     let rec sim_loop e_state step = if step.tret < exp.stop then (
-				      let ret = ida_solve ida step ida_normal in
-				      check_flag "IDASolve" ret ;
-				      Printf.printf "Sim-time: %f\n%!" step.tret;
-				    
-				      let (e_state', reinit_needed, samples) = event_loop_start e_state ret step.tret in
-				      if reinit_needed then ( 
-					check_flag "IDAReInit" (ida_reinit ida step.tret ida_ctxt) ; 
-					check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (step.tret +. minstep))  					
-				      ) ;
-				    
-				      update_mem e_state' eval_eq ;
-				      
-				      (next_state e_state' eval_unknown samples) >>= 
-
-					fun e_state'' -> sim_loop e_state'' { 
-								    step with tout = match next_step e_state'' with 
-										       Some t -> Float.min t (step.tret +. minstep)
-										     | None -> step.tret +. minstep 
-								  }
  
 				    ) else (
 				      Printf.printf "Done at time: %f\n%!" step.tret;

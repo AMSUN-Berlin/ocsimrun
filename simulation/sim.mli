@@ -27,6 +27,13 @@
 
 open Core
 
+type experiment = {
+  rtol : float ;
+  atol : float ;
+  start : float ;
+  stop : float;
+}
+
 module type SimEngine = sig
     type simulation_state
 
@@ -37,9 +44,9 @@ module type SimEngine = sig
     constraint 'r = 'r state_trait
 
     (* TODO: introduce result type *)
-    val init : ('r, int) sim_monad
+    val init : experiment -> ('r, int) sim_monad
 
-    val step : ('r, int) sim_monad
-end
+    val perform_step : float -> ('r, float) sim_monad
+  end
 
 

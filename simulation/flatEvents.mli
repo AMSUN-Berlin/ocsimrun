@@ -40,6 +40,8 @@ constraint 'r = 'r state_trait
 and ('r, 'a) event_state_monad = 'r -> ('r * 'a)
 constraint 'r = 'r state_trait
 
+val effects_exist : ('r, bool) event_state_monad 
+
 val is_valid : 'r flat_event_state -> ('r, bool) event_state_monad
 
 val flatten : ('r, 'r flat_event_state) event_state_monad
@@ -53,6 +55,8 @@ val flat_layout : ('r, FlatLayout.layout) event_state_monad
 type event_roots = fvector -> fvector -> fvector -> int
 
 val event_roots : ('r, event_roots) event_state_monad
+
+val event_array_size : ('r, int) event_state_monad
 
 val root_found : int -> relation_sign -> ('r, unit) event_state_monad 
 
