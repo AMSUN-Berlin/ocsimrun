@@ -78,6 +78,8 @@ let bounce_ball out =
 
 class bounce_state = object (self : 'a)
   inherit Core.core_state
+  inherit Containers.flat_container
+  inherit Containers.sundials_container
 end
 
 open Sim
@@ -85,10 +87,10 @@ open Sim
 let () = 
   let outfile = File.open_out "results.wall" in
   
-  ignore (write_header outfile ["time"; "vnext"; "h"; "h/dt"; "h/dt^2" ]) ;
-  (*
-  let mode = instantiate (bounce_ball outfile) (new bounce_state) in
-    
-  let sim = SundialsImpl.simulate mode { rtol = 0. ; atol = 10e-6 ; start = 0. ; stop = 10. } in 
+  ignore (write_header outfile ["time"; "vnext"; "h"; "h/dt"; "h/dt^2" ])  ;
 
- ignore (Lwt_main.run sim)*)
+  let state = (new bounce_state) in
+  ignore (((bounce_ball outfile) &. Sim.SundialsImpl.simulate { rtol = 0. ; atol = 10e-6 ; minstep = 10./. 500. ; start = 0. ; stop = 10. }) state)
+
+
+    

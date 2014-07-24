@@ -34,22 +34,24 @@ type experiment = {
   rtol : float ;
   atol : float ;
   start : float ;
+  minstep: float;
   stop : float;
 }
 
 module type SimEngine = sig
     type simulation_state
 
-    type 'r state_trait = <get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r
+    type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
     constraint 'r = 'r FlatEvents.state_trait
 
     type ('r, 'a) sim_monad = 'r -> ('r * 'a)
     constraint 'r = 'r state_trait
 
-    (* TODO: introduce result type *)
     val init : experiment -> ('r, int) sim_monad
-
     val perform_step : float -> ('r, float) sim_monad
+    val perform_step : float -> ('r, bool * float) sim_monad
+    val sim_loop : experiment -> ('r, float) sim_monad
+    val simulate : experiment -> ('r, float) sim_monad
 end
 
 type result = Success | Error of int * string
@@ -67,9 +69,10 @@ module SundialsImpl : SimEngine = struct
   type simulation_state = {
     ida : ida_solver;
     num_state : numeric_state;
+    layout : layout ;
   }	     
 
-  type 'r state_trait = <get_sim_state : simulation_state; set_sim_state : simulation_state -> 'r; .. > as 'r
+  type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
   constraint 'r = 'r FlatEvents.state_trait
 
   type ('r, 'a) sim_monad = 'r -> ('r * 'a)
@@ -84,10 +87,20 @@ module SundialsImpl : SimEngine = struct
 			       | 0 -> handle_root gs (i+1)
 			     ) else return ()
 
-  let perform_reinit sim t = perform (
-				 return t
-			       )
+  let perform_reinit {start;minstep} = perform (
+					   sim <-- get state ;
+					   layout <-- FlatEvents.flat_layout ;
+					   (* check, if layout has changed *)
 
+					   let _ = if layout.u_mark != sim.layout.u_mark or layout.e_mark != sim.layout.e_mark then
+						     raise ( Failure("Structural changes not supported.") )
+						   else () in
+				 
+					   let _ = check_flag "IDAReInit" (ida_reinit sim.ida start (ida_get_ctxt sim.ida)) ; 
+						   check_flag "IDACalcIC" (ida_calc_ic sim.ida ida_ya_ydp_init (start +. minstep)) in												
+					   return ()
+					 )
+	 
   let perform_step t  = perform ( 
 				 sim <-- get state ;
 				 event_dim <-- event_array_size ;
@@ -114,102 +127,100 @@ module SundialsImpl : SimEngine = struct
 
 				 _ <-- event_loop sim.num_state.yy sim.num_state.yp ;
 
-				 if reinit_needed then ( 
-				   perform_reinit sim step.tout
-				 ) else				    
-				   return step.tout
+				 return (reinit_needed, step.tout)
 			     )
 
-  let init exp = perform (
-		     layout <-- FlatEvents.flat_layout ;
+  let init ({start; minstep} as exp) = 
+    perform (
+	layout <-- FlatEvents.flat_layout ;
 
-		     let dim = layout.dimension in
-		     
-		     let id = fvector dim in
-		     let yy = fvector dim in
-		     let yp = fvector dim in
-		     let res = fvector dim in
+	let dim = layout.dimension in
+	
+	let id = fvector dim in
+	let yy = fvector dim in
+	let yp = fvector dim in
+	let res = fvector dim in
 
-		     let _ = (
-		       (* INIT HERE *)
-		       yy.{0} <- exp.start ;
-		       yp.{0} <- 1.0 ) in
-		     
-		     (* Set remaining input parameters. *)
-		     let rtol = 0. in
-		     let atol = 1.0e-3 in
+	let _ = (
+	  (* INIT HERE *)
+	  yy.{0} <- start ;
+	  yp.{0} <- 1.0 ) in
+	
+	(* Set remaining input parameters. *)
+	let rtol = 0. in
+	let atol = 1.0e-3 in
 
-		     (* Call IDACreate and IDAMalloc to initialize solution *)
-		     let ida = ida_create () in
-		     
-		     unknowns <-- all_unknowns ;
+	(* Call IDACreate and IDAMalloc to initialize solution *)
+	let ida = ida_create () in
+	
+	unknowns <-- all_unknowns ;
 
-		     let set_id = function 
-		       | Algebraic _ | LowState _  -> ()
-		       | State(_,yp) -> id.{yp} <- 1.
-		       | Derivative i -> id.{i} <- 1. in     
+	let set_id = function 
+	  | Algebraic _ | LowState _  -> ()
+	  | State(_,yp) -> Printf.printf "id(%d / %d) <- 1.\n" yp dim ; id.{yp} <- 1.
+	  | Derivative i -> id.{i} <- 1. in     
 
-		     let _ = id.{0} <- 1. ; Enum.iter (set_id % layout.flatten_unk) unknowns in
+	let _ = id.{0} <- 1. ; Enum.iter (set_id % layout.flatten_unk) unknowns in
 
-		     let _ = Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) in
-		     
-		     let _ = check_flag "IDASetId" (ida_set_id ida id) in
-		     		     
-		     event_dim <-- event_array_size ; 
-		     
-		     let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
-		     
-		     event_roots <-- event_roots ;
+	let _ = Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) in
+	
+	let _ = check_flag "IDASetId" (ida_set_id ida id) in
+	
+	event_dim <-- event_array_size ; 
+	
+	let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
+	
+	event_roots <-- event_roots ;
 
-		     let num_state = { t = exp.start ; Ida.yy ; yp ; res } in
+	let num_state = { t = start ; Ida.yy ; yp ; res } in
 
-		     let residual {t; yy; yp; res} = 
-		       yy.{0} <- t ; 
-		       layout.compute_res yy yp res 
-		     in
+	let residual {t; yy; yp; res} = 
+	  yy.{0} <- t ; 
+	  layout.compute_res yy yp res 
+	in
 
-		     let event_roots {e_t; e_y; e_yp; e_gi} =
-		       e_y.{0} <- e_t;
-		       event_roots e_y e_yp e_gi 
-		     in
+	let event_roots {e_t; e_y; e_yp; e_gi} =
+	  e_y.{0} <- e_t;
+	  event_roots e_y e_yp e_gi 
+	in
 
-		     let ida_ctxt = { residual ; state = num_state ; event_roots ; event_state = ida_event_state } ;		     
-		     in 
-		     let _ =
-				    check_flag "IDAInit" (ida_init ida ida_ctxt) ;
+	let ida_ctxt = { residual ; state = num_state ; event_roots ; event_state = ida_event_state } ;		     
+	in 
+	let _ =
+	  check_flag "IDAInit" (ida_init ida ida_ctxt) ;
 
-				    check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
+	  check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
 
-				    check_flag "IDADense" (ida_dense ida dim) ;
-		     in
+	  check_flag "IDADense" (ida_dense ida dim) ;
+	in
 
-		     (* Call IDACalcIC to correct the initial values. *)
-		     let minstep = exp.stop /. 500. in
-		     
-		     let _ = 
-		       Printf.printf "Initialization...\n%!";
-		       check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (exp.start +. minstep)) ;
-		     in
+	(* Call IDACalcIC to correct the initial values. *)
 
-		     _ <-- put state { ida ; num_state } ;
-			       
-		     return 0
-		   )
+	let _ = 
+	  Printf.printf "Initialization...\n%!";
+	  check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (start +. minstep)) ;
+	in
 
-(*
+	let sim = { ida ; num_state ; layout } in
+
+	_ <-- put state sim  ;
+	
+	return 0
+      )
 
 
-    (* Loop over output times, call IDASolve. *)
-    let rec sim_loop e_state step = if step.tret < exp.stop then (
- 
-				    ) else (
-				      Printf.printf "Done at time: %f\n%!" step.tret;
-				      Lwt.return Success
-				    )
-    in
+  let rec sim_loop ({start; minstep; stop} as exp) = 
+    perform (			     
+	(reinit, t') <-- perform_step (start +. minstep) ;
+	
+	_ <-- if reinit then perform_reinit exp else return () ;
 
-    Printf.printf "# Starting sim-loop...\n%!" ;
-    let step = { tout = minstep ; tret = exp.start } in
-    sim_loop event_state step 
-		     *)
+	if t' < stop then
+	  sim_loop {exp with start=t'}
+	else
+	  return t'
+      )
+	    
+  let simulate exp = init exp &. sim_loop exp
+			 
 end

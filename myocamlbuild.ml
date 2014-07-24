@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 448d8467c853648e4573a0dd642916a1) *)
+(* DO NOT EDIT (digest: 267ab344f4e2e60d5ee0abd61036e7ee) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -603,7 +603,25 @@ let package_default =
           ("dae_examples", ["examples"], [])
        ];
      lib_c = [];
-     flags = [];
+     flags =
+       [
+          (["oasis_library_dae_simulation_native"; "ocaml"; "link"; "native"],
+            [(OASISExpr.EBool true, S [A "-g"])]);
+          ([
+              "oasis_library_dae_simulation_native";
+              "ocaml";
+              "ocamldep";
+              "native"
+           ],
+            [(OASISExpr.EBool true, S [A "-g"])]);
+          ([
+              "oasis_library_dae_simulation_native";
+              "ocaml";
+              "compile";
+              "native"
+           ],
+            [(OASISExpr.EBool true, S [A "-g"])])
+       ];
      includes =
        [
           ("simulation", ["modeling"]);
@@ -615,7 +633,7 @@ let package_default =
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 619 "myocamlbuild.ml"
+# 637 "myocamlbuild.ml"
 (* OASIS_STOP *)
 let atdrules =
   begin function

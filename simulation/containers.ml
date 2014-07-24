@@ -23,40 +23,30 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  *)
 
+open FlatEvents
 open Core
 
-type experiment = {
-  rtol : float ;
-  atol : float ;
-  start : float ;
-  minstep : float ;
-  stop : float;
-}
+class virtual flat_container = object (self : 'a) 
+  constraint 'a = #core_state
 
-module type SimEngine = sig
-    type simulation_state
+  val _flat_event_state : 'a flat_event_state option = None
+				    
+  method set_event_state evs = {< _flat_event_state = evs >}
 
-    type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
-    constraint 'r = 'r FlatEvents.state_trait
+  method get_event_state = _flat_event_state
+						 
+end
 
-    type ('r, 'a) sim_monad = 'r -> ('r * 'a)
-    constraint 'r = 'r state_trait
+class virtual sundials_container = object (self : 'a)
+  constraint 'a = #flat_container
 
-    (* TODO: introduce result type *)
-    val init : experiment -> ('r, int) sim_monad
+  val _sim_state : Sim.SundialsImpl.simulation_state option = None
 
-    (* one-step simulation (including event handling) *)
-    val perform_step : float -> ('r, bool * float) sim_monad
+  method set_sim_state s = {< _sim_state = s >}
 
-    (* simulation loop w/o initialization *)
-    val sim_loop : experiment -> ('r, float) sim_monad
+  method get_sim_state = _sim_state	
 
-    (* initialization + simulation loop *)
-    val simulate : experiment -> ('r, float) sim_monad
-
-  end
-
-module SundialsImpl : SimEngine
-
+end
