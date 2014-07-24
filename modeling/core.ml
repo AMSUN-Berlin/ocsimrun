@@ -174,6 +174,12 @@ module Unknowns = struct
 
   let unknowns = { get = (fun a -> a.unknowns) ; set = fun b a -> {a with unknowns = b} }
 
+  let cardinality = perform (
+			{unknown_set} <-- get ;
+			return (UnknownSet.cardinal unknown_set)
+		      )
+
+
   let new_unknown = perform (
 			{unknown_count ; unknown_set ; start_values } <-- get ;
 			let u = {u_idx = unknown_count; u_der = 0} in
@@ -371,7 +377,7 @@ let der_order u = using (core |-- unknowns) (Unknowns.der_order u)
 
 let der u = using (core |-- unknowns) (Unknowns.der u)
 
-let current_dimension s = using ( core |-- equations ) Basic.cardinality s
+let current_dimension s = using ( core |-- unknowns) Unknowns.cardinality s
 
 let add_equation e = using ( core |-- equations ) (Basic.add e)
 
