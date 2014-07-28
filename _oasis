@@ -8,7 +8,7 @@ Plugins:     META (0.4), StdFiles (0.4), DevFiles (0.4)
 
 # for corebuild compatibility:
 AlphaFeatures:           ocamlbuild_more_args
-XOCamlbuildExtraArgs:    -j 4 -tag thread -tag annot -tag bin_annot -tag short_paths
+XOCamlbuildExtraArgs:    -j 4 -tag thread 
 
 Library dae_output
   Path:       output
@@ -66,5 +66,30 @@ Executable sawtooth_variable
   BuildTools: ocamlbuild
   BuildDepends: dae_modeling, dae_simulation
   MainIs: structChange.ml
- 
+
+Executable coreTests
+  Path: tests
+  CompiledObject: best
+  MainIs: coreTests.ml
+  Install: false
+  Build$: flag(tests)  
+  BuildDepends: dae_modeling, oUnit
+  BuildTools: ocamlbuild
+
+Executable flatteningTests
+  Path: tests
+  CompiledObject: best
+  MainIs: flatTests.ml
+  Install: false
+  Build$: flag(tests)  
+  BuildDepends: dae_modeling, oUnit, dae_simulation
+  BuildTools: ocamlbuild
+
+Test core
+  Type: custom (0.3)
+  Command: $coreTests
+
+Test flat
+  Type: custom (0.3)
+  Command: $flatTests
 
