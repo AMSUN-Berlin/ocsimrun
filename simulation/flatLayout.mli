@@ -55,3 +55,4 @@ val validate : layout -> ('r, layout) core_monad
 
 val flatten : ('r, layout) core_monad
 
+val string_of_flat_unknown : flat_unknown -> string

@@ -41,6 +41,12 @@ type fvector = (float, float64_elt, c_layout) Array1.t
 (** Distinguish between a yy or yp entry *)
 type flat_unknown = LowState of int | State of int * int | Derivative of int | Algebraic of int
 
+let string_of_flat_unknown = function
+    LowState (n) -> Printf.sprintf "LowState(%d)" n 
+  | State(yy,yp) -> Printf.sprintf "State(%d, %d)" yy yp
+  | Derivative(yp) -> Printf.sprintf "Derivative(%d)" yp
+  | Algebraic(yy) -> Printf.sprintf "Algebraic(%d)" yy
+
 type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float  (** linear equation with constant coeffs *)
 
 type layout = {
@@ -60,13 +66,13 @@ open Monads.ObjectStateMonad
 
 let rec fill_states u hd (dn, sn, fm) = function 
   (* only the 0-derivative is a plain flat state *)
-  | 0 -> fill_states u hd (dn, sn+1, UnknownMap.add {u_idx=u; u_der=0} (LowState sn) fm) 1
+  | 0 ->  Printf.printf "Adding algebraic for unknown %d, at %d\n" u sn;  fill_states u hd (dn, sn+1, UnknownMap.add {u_idx=u; u_der=0} (LowState sn) fm) 1
 		     
   (* only the highest derivative is a plain flat derivative *) 
-  | n when n = hd -> (dn+1, sn, UnknownMap.add {u_idx=u; u_der=n} (Derivative dn) fm)		       
+  | n when n = hd -> Printf.printf "Adding derivative for unknown %d, %d times diff at %d\n" u hd dn ; (dn+1, sn, UnknownMap.add {u_idx=u; u_der=n} (Derivative dn) fm)		       
 
   (* everything else is both *)
-  | n -> (fill_states u hd (dn+1, sn+1, (UnknownMap.add {u_idx=u; u_der=n} (State(dn, sn)) fm) ) (n+1))
+  | n -> Printf.printf "Adding state for unknown %d, %d times diff at %d, %d\n" u n sn dn; (fill_states u hd (dn+1, sn+1, (UnknownMap.add {u_idx=u; u_der=n} (State(sn, dn)) fm) ) (n+1))
 
 (** 
   flatten a row of unknown starting at derivative index @dn and state index @sn 
@@ -141,7 +147,7 @@ let flatten s = ( perform (
 		      us <-- all_unknowns ;
                       (dn,sn,flat_us) <-- (fold_enum flatten_unknown (0,0,UnknownMap.empty) us);
 		      
-		      dimension <-- current_dimension ;
+		      let dimension = sn in
 		      
 		      let flatten_unk u = UnknownMap.find u flat_us in
 		      let flatten_eq = flatten_equation flat_us in
