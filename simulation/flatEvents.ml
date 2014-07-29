@@ -91,6 +91,8 @@ let state = { get = (fun a -> a#get_event_state) ; set = fun a b -> b#set_event_
 let eadd = EvSet.add
 let eempty = EvSet.empty
 
+let layout es = es.layout
+
 
 (* parse a signal and collect on the fly:
      dependencies on "every step", dependencies on clocks ,
@@ -132,14 +134,6 @@ let is_valid s = perform (
 		     return (s.marks.clm = c && s.marks.rlm = r && s.marks.evm = e) 			    
 		 )
 
-let flat_layout s = ( perform (
-			  so <-- get state ;
-			  layout <-- (match so with
-					Some (es) -> FlatLayout.validate es.layout 
-				      | None -> FlatLayout.flatten );
-			  return layout
-		    )) s
-
 let flatten_relation layout rh (hds, index_map, frs) = perform (
 							   o <-- get_relation rh ;
 							   return
@@ -157,6 +151,14 @@ let event_marks s = ( perform (
 			  clm <-- clock_mark ;
 			  rlm <-- relation_mark ;
 			  return { clm ; rlm ; evm }
+		    )) s
+
+let flat_layout s = ( perform (
+			  so <-- get state ;
+			  layout <-- (match so with
+					Some (es) -> FlatLayout.validate es.layout 
+				      | None -> FlatLayout.flatten );
+			  return layout
 		    )) s
 
 let flatten s = ( perform (
@@ -189,6 +191,7 @@ let flatten s = ( perform (
 		      let es = { layout ; relations; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
 				 dependencies ; roots ; memory ; queue = SampleQueue.empty ; effects = [] ; marks } in
 
+		      _ <-- put state (Some(es));
 		      return es
 		)) s	      
 

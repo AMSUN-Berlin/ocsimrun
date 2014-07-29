@@ -52,6 +52,8 @@ val validate : 'r flat_event_state -> ('r, 'r flat_event_state) event_state_mona
 
 val flat_layout : ('r, FlatLayout.layout) event_state_monad
 
+val layout : 'r flat_event_state -> FlatLayout.layout
+
 type event_roots = fvector -> fvector -> fvector -> int
 
 val event_roots : ('r, event_roots) event_state_monad

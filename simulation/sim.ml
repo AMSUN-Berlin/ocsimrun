@@ -89,11 +89,12 @@ module SundialsImpl : SimEngine = struct
 
   let perform_reinit {start;minstep} = perform (
 					   sim <-- get state ;
-					   layout <-- FlatEvents.flat_layout ;
+					   es <-- FlatEvents.event_state ;
+					   let layout = FlatEvents.layout es in 
 					   (* check, if layout has changed *)
 
 					   let _ = if layout.u_mark != sim.layout.u_mark or layout.e_mark != sim.layout.e_mark then
-						     raise ( Failure("Structural changes not supported.") )
+						     raise ( Failure("Structural changes not (yet) supported.") )
 						   else () in
 				 
 					   let _ = check_flag "IDAReInit" (ida_reinit sim.ida start (ida_get_ctxt sim.ida)) ; 
@@ -132,7 +133,8 @@ module SundialsImpl : SimEngine = struct
 
   let init ({start; minstep} as exp) = 
     perform (
-	layout <-- FlatEvents.flat_layout ;
+	es <-- FlatEvents.event_state ;
+	let layout = FlatEvents.layout es in 
 
 	let dim = layout.dimension in
 	
@@ -157,7 +159,7 @@ module SundialsImpl : SimEngine = struct
 
 	let set_id = function 
 	  | Algebraic _ | LowState _  -> ()
-	  | State(_,yp) -> Printf.printf "id(%d / %d) <- 1.\n" yp dim ; id.{yp} <- 1.
+	  | State(yy,yp) -> Printf.printf "id(%d %d / %d) <- 1.\n" yy yp dim ; id.{yp} <- 1.
 	  | Derivative i -> id.{i} <- 1. in     
 
 	let _ = id.{0} <- 1. ; Enum.iter (set_id % layout.flatten_unk) unknowns in
