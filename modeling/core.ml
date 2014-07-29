@@ -166,9 +166,11 @@ type event_handler = int
 
 let time = {u_idx = 0; u_der = 0}
 
+let dtime = {u_idx = 0; u_der = 1}
+
 open Lens
 
-module UnknownState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.singleton time ; unknown_count = 1 ; start_values = UnknownMap.empty} end
+module UnknownState = struct type t = unknown_state_t let empty () = {unknown_set = UnknownSet.add dtime (UnknownSet.singleton time) ; unknown_count = 1 ; start_values = UnknownMap.empty} end
 module Unknowns = struct 
   include Monads.MakeStateMonad(UnknownState)
 
@@ -377,7 +379,7 @@ let der_order u = using (core |-- unknowns) (Unknowns.der_order u)
 
 let der u = using (core |-- unknowns) (Unknowns.der u)
 
-let current_dimension s = using ( core |-- unknowns) Unknowns.cardinality s
+let current_dimension s = let (s', n) = (using ( core |-- equations) Basic.cardinality s) in (s', n+1)
 
 let add_equation e = using ( core |-- equations ) (Basic.add e)
 
