@@ -43,6 +43,24 @@ let setup _ = new flat_state
 let teardown _ =
   ()
 
+let test_layout_validation s = ignore (
+				   ( perform (
+					 layout <-- FlatLayout.flatten ;
+					 valid <-- is_valid layout ;
+					 return (assert_bool "unchanged layout is valid" valid)
+				   )) s
+				 )
+
+let test_layout_invalidation s = ignore (
+				   ( perform (
+					 layout <-- FlatLayout.flatten ;
+					 x <-- new_unknown ;
+					 valid <-- is_valid layout ;
+					 return (assert_bool "changed layout is invalid" (not valid))
+				   )) s
+				 )
+
+
 let test_state_flattening s = ignore (
 				  ( perform ( 
 					x <-- new_unknown ;
@@ -57,7 +75,9 @@ let test_state_flattening s = ignore (
 				)
 
 let suite = "Test Core" >:::
-  ["test_state_flattening" >:: (bracket setup test_state_flattening teardown)
+  ["test_state_flattening" >:: (bracket setup test_state_flattening teardown) ;
+   "test_layout_invalidation" >:: (bracket setup test_layout_invalidation teardown) ;
+   "test_layout_validation" >:: (bracket setup test_layout_validation teardown)
   ]
 
 let _ =
