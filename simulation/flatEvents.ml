@@ -187,7 +187,7 @@ let flatten s = ( perform (
 			  gi.{i} <- layout.compute_eq yy yp relations.(i).feq
 			in
 			(Array.iteri calc_root relations) ; 0 in
-
+		      
 		      let es = { layout ; relations; relation_indices = index_map ; relation_handles = Vect.to_array handles ; 
 				 dependencies ; roots ; memory ; queue = SampleQueue.empty ; effects = [] ; marks } in
 
@@ -283,24 +283,37 @@ let next_clock s = ( perform (
 			   if SampleQueue.size es.queue = 0 then None
 			   else (Some (SampleQueue.find_min es.queue).time) )
 		   ) ) s
-  
+
+
 let sample yy yp ch = function 
     LinearClock(a, b) -> { time = yy.{0} *. a +. b ; clock = ch }
 
+let schedule_clock yy yp ch queue = perform (
+					o <-- get_clock ch ;
+					match o with Some(clock) ->
+						  let sp = sample yy yp ch clock in
+						  return (SampleQueue.insert queue sp)
+				      )
+  
 let schedule yy yp ch = perform (
-			    es <-- event_state ;
-			    o <-- get_clock ch ;
-			    match o with Some(clock) ->					      
-					 let sp = sample yy yp ch clock in
-                               		 let queue' = SampleQueue.insert es.queue sp in
-					 put state (Some {es with queue = queue'})
-				       | None -> return ()
+			    es <-- event_state ;	      
+			    queue' <-- schedule_clock yy yp ch es.queue ;
+			    put state (Some {es with queue = queue'}) ;
+			    es' <-- event_state ;
+			    return ()
 			  )
+
+let schedule_clocks yy yp = perform (
+				es <-- event_state ;
+				clocks <-- clock_handles ;
+				queue' <-- fold_enum (schedule_clock yy yp) es.queue clocks ;
+				put state (Some {es with queue = queue'})
+			      )
 
 let rec advance_queue t queue clocks =
   if (SampleQueue.size queue = 0) then (queue, clocks) else
     let s = (SampleQueue.find_min queue) in
-    if s.time <= t then (
+    if s.time <= t then (      
       advance_queue t (SampleQueue.del_min queue) (s.clock :: clocks)
     ) else 
       (queue, clocks)
@@ -322,6 +335,7 @@ let fire_clock yy yp ch = perform (
 
 			      effects' <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;			      
 			      _ <-- schedule yy yp ch ;
+			      es <-- event_state ;
 			      put state (Some {es with effects = effects'})
 			    )
 

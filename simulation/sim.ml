@@ -207,6 +207,8 @@ module SundialsImpl : SimEngine = struct
 
 	_ <-- put state sim  ;
 	
+	_ <-- schedule_clocks yy yp ;
+
 	return 0
       )
 

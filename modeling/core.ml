@@ -417,6 +417,10 @@ let get_clock h = using ( core |-- clocks ) (Basic.get_el h)
 
 let clock_mark s = using (core |-- clocks) Basic.mark s
 
+let all_clocks s = using ( core |-- clocks) Basic.all s
+
+let clock_handles s = using ( core |-- clocks) Basic.handles s
+
 let add_event e = using (core |-- events) (Basic.add e)
 
 let del_event h = using (core |-- events) (Basic.del h)

@@ -54,8 +54,21 @@ let test_every_step_sampling (r, s) = ignore (
 					  )) s
 				   )
 
+let test_linear_sampling (r, s) = ignore (
+				      ( perform ( 
+					    clock <-- add_clock (LinearClock(1., 0.)) ;
+					    _ <-- add_event { signal=Clock(clock) ; effects = fun s -> (s, (r := !r + 1)) } ;
+					    _ <-- SundialsImpl.simulate 
+						    { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
+					    return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	
+				      )) s
+				   )
+
+
+
 let suite = "Test Core" >:::
-  ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown)
+  ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
+   "test_linear_sampling" >:: (bracket setup test_linear_sampling teardown) 
   ]
 
 let _ =

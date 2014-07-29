@@ -122,6 +122,10 @@ val clock_mark : ('r, int) core_monad
 
 val clock_index : clock_handle -> ('r, int) core_monad
 
+val all_clocks : ('r, clock BatEnum.t) core_monad
+
+val clock_handles : ('r, clock_handle BatEnum.t) core_monad
+
 type relation_sign = Lt 
 		   | Gt
 

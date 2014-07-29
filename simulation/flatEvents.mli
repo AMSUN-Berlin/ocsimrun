@@ -70,5 +70,7 @@ val next_clock : ('r, float option) event_state_monad
 
 val schedule : fvector -> fvector -> clock_handle -> ('r, unit) event_state_monad
 
+val schedule_clocks : fvector -> fvector -> ('r, unit) event_state_monad
+
 val reschedule : fvector -> fvector -> ('r, unit) event_state_monad 
 
