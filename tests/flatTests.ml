@@ -50,7 +50,7 @@ let test_state_flattening s = ignore (
 					layout <-- FlatLayout.flatten ;
 					let _ =					      
 					  assert_equal ~msg:"flat dimension" ~printer:string_of_int 2 layout.dimension ;
-					  assert_equal ~msg:"flatten state" ~printer:string_of_flat_unknown (State(1, 1)) (layout.flatten_unk x)
+					  assert_equal ~msg:"flatten state" ~printer:string_of_flat_unknown (LowState 1) (layout.flatten_unk x)
 					in 
 					return layout
 				  )) s
