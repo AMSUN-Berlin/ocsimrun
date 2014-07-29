@@ -116,7 +116,7 @@ module SundialsImpl : SimEngine = struct
 				 
 				 let rootsfound = Array.create event_dim 0 in
 
-				 _ <-- (if ret = ida_root_return then 
+				 _ <-- (if ret = ida_root_return then 					 
 					 let _ = check_flag "IDAGetRootInfo" (ida_get_root_info sim.ida rootsfound) in
 					 handle_root rootsfound 0 ;
 				       else

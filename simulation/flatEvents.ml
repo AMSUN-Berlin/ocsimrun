@@ -207,11 +207,10 @@ let event_state s = ( perform (
 			  | None -> flatten
 		    )) s
 
-type signal_src = SigClock of clock_handle | SigRel of int * bool
+type signal_src = SigClock of clock_handle | SigRel of int * bool | SigStep
 
 let rec eval src index rel_state = function 
-    (* ever is some kind of special sample *)
-    EveryStep -> (match src with SigClock(_) -> (true, true) | _ -> (true, false) )
+    EveryStep -> (match src with SigStep -> (true, true) | _ -> (true, false) )
 	      
   | Clock(s) -> ( match src with SigClock(r) -> (s = r, s = r) | _ -> (false, false) )
 		 
@@ -233,7 +232,7 @@ let rec event_loop yy yp = perform (
 			   es <-- event_state ;
 			   match es.effects with
 			     [] -> return () ;
-			   | effects -> (seq effects) &. event_loop yy yp			   
+			   | effects -> (seq effects) &. ((put state (Some {es with effects=[]})) &. event_loop yy yp)
 			 )
 
 let collect_effects mem idx src eh effects = perform (
@@ -306,6 +305,15 @@ let rec advance_queue t queue clocks =
     ) else 
       (queue, clocks)
 
+let fire_step es yy yp = perform (
+			     let deps = (EvSet.enum es.dependencies.on_step) in
+			     let src = SigStep in
+			     let rel_index rh = RelMap.find rh es.relation_indices in
+
+			     effects' <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;			      
+			     return effects'
+			)
+			  
 let fire_clock yy yp ch = perform (
 			      es <-- event_state ;
 			      let deps = (EvSet.enum (ClockMap.find ch es.dependencies.on_clocks)) in
@@ -326,7 +334,8 @@ let rec fire_clocks yy yp = function
 			    
 let reschedule yy yp = perform (
 			   es <-- event_state ;
+			   effects' <-- fire_step es yy yp;
 			   let (queue', active_clocks) = advance_queue yy.{0} es.queue [] in
-			   _ <-- put state (Some {es with queue = queue'}) ;
+			   _ <-- put state (Some {es with queue = queue' ; effects = effects'}) ;
 			   fire_clocks yy yp active_clocks ;
 			 )

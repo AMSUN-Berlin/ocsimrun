@@ -47,10 +47,10 @@ let teardown _ =
 
 let test_every_step_sampling (r, s) = ignore (
 					  ( perform ( 
-						_ <-- add_event { signal=EveryStep ; effects = return (r := !r + 1) } ;
+						_ <-- add_event { signal=EveryStep ; effects = fun s -> (s, (r := !r + 1)) } ;
 						_ <-- SundialsImpl.simulate 
 							{ rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
-						return (assert_equal ~msg:"flat dimension" ~printer:string_of_int 10 !r)	
+						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	
 					  )) s
 				   )
 
