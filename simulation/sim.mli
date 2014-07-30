@@ -38,6 +38,8 @@ type experiment = {
 module type SimEngine = sig
     type simulation_state
 
+    val compute_unknown : simulation_state -> unknown -> float
+
     type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
     constraint 'r = 'r FlatEvents.state_trait
 
@@ -55,6 +57,8 @@ module type SimEngine = sig
 
     (* initialization + simulation loop *)
     val simulate : experiment -> ('r, float) sim_monad
+
+    val simulation_state : ('r, simulation_state option) sim_monad
 
   end
 

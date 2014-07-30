@@ -54,10 +54,17 @@ let test_every_step_sampling (r, s) = ignore (
 					  )) s
 				   )
 
+let linear_sample_effect r = perform ( 
+					o <-- SundialsImpl.simulation_state;					
+					match o with Some(sim) ->
+						     return (r := !r + 1 ; assert_equal ~msg:"sample time" ~printer:string_of_float (float_of_int !r) (SundialsImpl.compute_unknown sim time))
+						   | None -> return (assert_bool "no sim state" false)
+				  )
+
 let test_linear_sampling (r, s) = ignore (
 				      ( perform ( 
 					    clock <-- add_clock (LinearClock(1., 0.)) ;
-					    _ <-- add_event { signal=Clock(clock) ; effects = fun s -> (s, (r := !r + 1)) } ;
+					    _ <-- add_event { signal=Clock(clock) ; effects = linear_sample_effect r } ;
 					    _ <-- SundialsImpl.simulate 
 						    { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
 					    return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	

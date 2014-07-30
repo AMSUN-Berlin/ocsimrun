@@ -40,6 +40,7 @@ type experiment = {
 
 module type SimEngine = sig
     type simulation_state
+    val compute_unknown : simulation_state -> unknown -> float
 
     type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
     constraint 'r = 'r FlatEvents.state_trait
@@ -52,6 +53,7 @@ module type SimEngine = sig
     val perform_step : float -> ('r, bool * float) sim_monad
     val sim_loop : experiment -> ('r, float) sim_monad
     val simulate : experiment -> ('r, float) sim_monad
+    val simulation_state : ('r, simulation_state option) sim_monad
 end
 
 type result = Success | Error of int * string
@@ -78,7 +80,19 @@ module SundialsImpl : SimEngine = struct
   type ('r, 'a) sim_monad = 'r -> ('r * 'a)
   constraint 'r = 'r state_trait
 
+  let compute_unknown {layout;num_state} u =
+    let _ = Printf.printf "unpack done\n%!" in
+    let fu = layout.flatten_unk u in
+    layout.compute_unk num_state.yy num_state.yp fu 
+
+
   let state = { get = (fun a -> a#get_sim_state) ; set = fun a b -> b#set_sim_state a }
+
+  let simulation_state s = ( perform (
+			       o <-- get state ;
+			       return o;
+			   ) ) s
+
 
   let rec handle_root gs i = if i < Array.length gs then (
 			       match gs.(i) with
