@@ -51,9 +51,12 @@ type flat_equation = Flat_Linear of (flat_unknown array) * (float array) * float
 
 type layout = {
   dimension : int;
+
   compute_res : fvector -> fvector -> fvector -> int;
   compute_unk : fvector -> fvector -> flat_unknown -> float;
   compute_eq : fvector -> fvector -> flat_equation -> float;
+
+  update_unk : fvector -> fvector -> float -> flat_unknown -> unit;
 
   flatten_unk : unknown -> flat_unknown;
   flatten_eq : equation -> flat_equation;
@@ -149,7 +152,7 @@ let flatten s = ( perform (
 		      
 		      let dimension = sn in
 		      
-		      let flatten_unk u = UnknownMap.find u flat_us in
+		      let flatten_unk u = Printf.printf "searching unknown %s\n%!" (string_of_unknown u) ; UnknownMap.find u flat_us in
 		      let flatten_eq = flatten_equation flat_us in
 		      let equalities = Array.of_enum (collect_equalities flat_us) in
 		      
@@ -159,7 +162,7 @@ let flatten s = ( perform (
 
 		      let compute_res = residual equalities feqs in
 
-		      return {dimension ; compute_res ; compute_eq ; flatten_unk ; flatten_eq ; compute_unk ; u_mark ; e_mark}
+		      return {dimension ; compute_res ; compute_eq ; flatten_unk ; flatten_eq ; update_unk ; compute_unk ; u_mark ; e_mark}
 		) ) s 
 
 let is_valid layout = perform (

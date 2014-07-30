@@ -47,11 +47,13 @@ module type SimEngine = sig
     type ('r, 'a) sim_monad = 'r -> ('r * 'a)
     constraint 'r = 'r state_trait
 
+    val compute_unknown : simulation_state -> unknown -> float
     val init : experiment -> ('r, int) sim_monad
     val perform_step : float -> ('r, float) sim_monad
     val perform_step : float -> ('r, bool * float) sim_monad
     val sim_loop : experiment -> ('r, float) sim_monad
     val simulate : experiment -> ('r, float) sim_monad
+    val simulation_state : ('r, simulation_state option) sim_monad 
 end
 
 type result = Success | Error of int * string
@@ -72,6 +74,14 @@ module SundialsImpl : SimEngine = struct
     layout : layout ;
   }	     
 
+  let compute_unknown {ida;layout;num_state} u = 
+    let fu = layout.flatten_unk u in
+    layout.compute_unk num_state.yy num_state.yp fu
+
+  let update_unknown {ida;layout;num_state} u f = 
+    let fu = layout.flatten_unk u in
+    layout.update_unk num_state.yy num_state.yp f fu
+
   type 'r state_trait = <get_sim_state : simulation_state option; set_sim_state : simulation_state option -> 'r; .. > as 'r
   constraint 'r = 'r FlatEvents.state_trait
 
@@ -79,6 +89,16 @@ module SundialsImpl : SimEngine = struct
   constraint 'r = 'r state_trait
 
   let state = { get = (fun a -> a#get_sim_state) ; set = fun a b -> b#set_sim_state a }
+
+  let simulation_state s = (perform ( 
+				sim <-- get state ; 
+				return sim 
+			   ) ) s
+
+  let get_sim_state s = ( perform (
+			    o <-- get state ;
+			    match o with Some(sim) -> return sim 
+			)) s 
 
   let rec handle_root gs i = if i < Array.length gs then (
 			       match gs.(i) with
@@ -88,7 +108,7 @@ module SundialsImpl : SimEngine = struct
 			     ) else return ()
 
   let perform_reinit {start;minstep} = perform (
-					   sim <-- get state ;
+					   sim <-- get_sim_state ;					   
 					   es <-- FlatEvents.event_state ;
 					   let layout = FlatEvents.layout es in 
 					   (* check, if layout has changed *)
@@ -103,15 +123,17 @@ module SundialsImpl : SimEngine = struct
 					 )
 	 
   let perform_step t  = perform ( 
-				 sim <-- get state ;
+				 sim <-- get_sim_state ;
 				 event_dim <-- event_array_size ;
 
 				 let step = {tret = t ; tout = t} in
 
 				 let ret = ida_solve sim.ida step ida_normal in
 		     
+				 let t' = compute_unknown sim time in
+
 				 let _ = check_flag "IDASolve" ret ;
-					 Printf.printf "Sim-time: %f\n%!" step.tret 
+					 Printf.printf "Sim-time: %f ret: %f\n%!" t' step.tret 
 				 in
 				 
 				 let rootsfound = Array.create event_dim 0 in
@@ -205,7 +227,9 @@ module SundialsImpl : SimEngine = struct
 
 	let sim = { ida ; num_state ; layout } in
 
-	_ <-- put state sim  ;
+	_ <-- set_sim_interface { value_of = compute_unknown sim ; set_value = update_unknown sim } ;
+	
+	_ <-- put state (Some sim)  ;
 	
 	_ <-- schedule_clocks yy yp ;
 

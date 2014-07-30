@@ -46,6 +46,8 @@ type clock_handle = int
 
 type relation_handle = int
 
+let string_of_unknown {u_idx;u_der} = Printf.sprintf "d^%d(x_%d)/dt" u_der u_idx 
+
 let unknown_compare u1 u2 = BatOrd.comp0 (BatOrd.bin_ord Int.ord u1.u_idx u2.u_idx Int.ord u1.u_der u2.u_der)
 
 module UnknownSet = struct 
@@ -129,7 +131,6 @@ module Sim = struct
 			  s <-- get ;
 			  return (s.set_value u f) ;
 			)
-
 end
 
 type 'r event = {

@@ -44,6 +44,8 @@ module type SimEngine = sig
     type ('r, 'a) sim_monad = 'r -> ('r * 'a)
     constraint 'r = 'r state_trait
 
+    val compute_unknown : simulation_state -> unknown -> float
+
     (* TODO: introduce result type *)
     val init : experiment -> ('r, int) sim_monad
 
@@ -55,6 +57,8 @@ module type SimEngine = sig
 
     (* initialization + simulation loop *)
     val simulate : experiment -> ('r, float) sim_monad
+
+    val simulation_state : ('r, simulation_state option) sim_monad 
 
   end
 

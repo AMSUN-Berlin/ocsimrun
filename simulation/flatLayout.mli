@@ -42,6 +42,8 @@ type layout = {
   compute_unk : fvector -> fvector -> flat_unknown -> float;
   compute_eq : fvector -> fvector -> flat_equation -> float;
 
+  update_unk : fvector -> fvector -> float -> flat_unknown -> unit;
+
   flatten_unk : unknown -> flat_unknown;
   flatten_eq : equation -> flat_equation;
 
