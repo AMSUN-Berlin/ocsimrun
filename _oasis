@@ -10,86 +10,26 @@ Plugins:     META (0.4), StdFiles (0.4), DevFiles (0.4)
 AlphaFeatures:           ocamlbuild_more_args
 XOCamlbuildExtraArgs:    -j 4 -tag thread 
 
-Library dae_output
-  Path:       output
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  Modules:    Recon
-  BuildDepends: batteries, msgpack, monad-custom 
-
 Library dae_modeling
   Path:       modeling
   CompiledObject: best
   BuildTools: ocamlbuild
   Modules:    Monads, Core
-  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, lwt.unix, daestruct
+  BuildDepends: e2lang, bigarray, batteries, monad-custom
 
 Library dae_simulation
   Path:       simulation
   CompiledObject: best
   BuildTools: ocamlbuild
-  Modules:    Sim, FlatLayout, FlatEvents, Controlled, Commands_j, Commands_t, Containers
-  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension, lwt.syntax, atdgen
+  Modules:    Sim, FlatLayout, FlatEvents, Containers
+  BuildDepends: dae_modeling, bigarray, batteries, pa_comprehension
   NativeOpt: -g
 
-Library dae_examples
-  Path: examples
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  Modules: Bounce, Flows, Potentials, Electrical 
-  BuildDepends: dae_modeling, batteries
-
-Executable bounce
-  Path: examples
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  BuildDepends: dae_simulation
-  MainIs: bounce_recon.ml
-
-Executable bounce_alg
-  Path: examples
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  BuildDepends: dae_modeling, dae_simulation
-  MainIs: bounceAlg.ml
-
-Executable sawtooth
-  Path: examples
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  BuildDepends: dae_modeling, dae_simulation
-  MainIs: sawtooth.ml
-
-Executable sawtooth_variable
-  Path: examples
-  CompiledObject: best
-  BuildTools: ocamlbuild
-  BuildDepends: dae_modeling, dae_simulation
-  MainIs: structChange.ml
-
-Executable coreTests
+Executable simTests
   Path: tests
   CompiledObject: best
-  MainIs: coreTests.ml
-  Install: false
-  Build$: flag(tests)  
-  BuildDepends: dae_modeling, oUnit
-  BuildTools: ocamlbuild
-
-Executable flatteningTests
-  Path: tests
-  CompiledObject: best
-  MainIs: flatTests.ml
+  MainIs: simTests.ml
   Install: false
   Build$: flag(tests)  
   BuildDepends: dae_modeling, oUnit, dae_simulation
   BuildTools: ocamlbuild
-
-Test core
-  Type: custom (0.3)
-  Command: $coreTests
-
-Test flat
-  Type: custom (0.3)
-  Command: $flatTests
-

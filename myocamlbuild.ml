@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 267ab344f4e2e60d5ee0abd61036e7ee) *)
+(* DO NOT EDIT (digest: f081ac1571efee1a309a61a5fc608aff) *)
 module OASISGettext = struct
 (* # 22 "src/oasis/OASISGettext.ml" *)
 
@@ -597,10 +597,8 @@ let package_default =
   {
      MyOCamlbuildBase.lib_ocaml =
        [
-          ("dae_output", ["output"], []);
           ("dae_modeling", ["modeling"], []);
-          ("dae_simulation", ["simulation"], []);
-          ("dae_examples", ["examples"], [])
+          ("dae_simulation", ["simulation"], [])
        ];
      lib_c = [];
      flags =
@@ -623,50 +621,12 @@ let package_default =
             [(OASISExpr.EBool true, S [A "-g"])])
        ];
      includes =
-       [
-          ("simulation", ["modeling"]);
-          ("modeling", ["output"]);
-          ("examples", ["modeling"; "simulation"])
-       ]
+       [("tests", ["modeling"; "simulation"]); ("simulation", ["modeling"])]
   }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
-# 637 "myocamlbuild.ml"
+# 631 "myocamlbuild.ml"
 (* OASIS_STOP *)
-let atdrules =
-  begin function
-    | After_rules ->
-       let tag_atdgen env patterns =
-	 List.iter (fun p -> tag_file (env p) (Tags.elements (Tags.of_list ["atdgenerated"]))) patterns
-       in
-       rule "atdgen: .atd -> _t.ml*"
-	    ~prods:["%_t.ml";"%_t.mli"]
-	    ~dep:"%.atd"
-	    (begin fun env build ->
-		   let atdgen = "atdgen" in
-		   tag_atdgen env ["%_t.ml";"%_t.mli"];
-		   Cmd (S [A atdgen; A "-t"; P (env "%.atd")]);
-	     end) ;
-       rule "atdgen: .atd -> _j.ml*"
-	    ~prods:["%_j.ml";"%_j.mli";]
-	    ~dep:"%.atd"
-	    (begin fun env build ->
-		   let atdgen = "atdgen" in
-		   tag_atdgen env ["%_j.ml"; "%_j.mli"];
-		   Cmd (S [A atdgen; A "-j"; A "-j-std"; P (env "%.atd")]);
-	     end) ;
-       rule "atdgen: .atd -> _v.ml*"
-	    ~prods:["%_v.ml";"%_v.mli";]
-	    ~dep:"%.atd"
-	    (begin fun env build ->
-		   let atdgen = "atdgen" in
-		   tag_atdgen env ["%_v.ml";"%_v.mli";];
-		   Cmd (S [A atdgen; A "-v"; P (env "%.atd")]);
-	     end) ;
-       () ;
-    | _ -> ()
-  end
-in
-Ocamlbuild_plugin.dispatch (MyOCamlbuildBase.dispatch_combine [dispatch_default; atdrules])
+Ocamlbuild_plugin.dispatch dispatch_default;;

@@ -59,17 +59,31 @@ end
 type result = Success | Error of int * string
 
 module SundialsImpl : SimEngine = struct
-  open Ida	   
-  open Ida_utils
+  open Bigarray
   open FlatLayout
   open FlatEvents
   open Lens
   open Monads.ObjectStateMonad
+       
+  let fvector = Array1.create float64 c_layout 
 
   let last arr = arr.((Array.length arr) - 1)
 
+  type numeric_state = {
+    t : float ;
+    yy : fvector ;
+    yp : fvector ;
+    res : fvector ;
+  }
+
+  type event_state = {
+    e_t : float ;
+    e_y : fvector ;
+    e_yp : fvector ;
+    e_gi : fvector ;
+  }
+
   type simulation_state = {
-    ida : ida_solver;
     num_state : numeric_state;
     layout : layout ;
   }	     
@@ -111,8 +125,6 @@ module SundialsImpl : SimEngine = struct
 						     raise ( Failure("Structural changes not (yet) supported.") )
 						   else () in
 				 
-					   let _ = check_flag "IDAReInit" (ida_reinit sim.ida start (ida_get_ctxt sim.ida)) ; 
-						   check_flag "IDACalcIC" (ida_calc_ic sim.ida ida_ya_ydp_init (start +. minstep)) in												
 					   return ()
 					 )
 	 
@@ -120,29 +132,13 @@ module SundialsImpl : SimEngine = struct
 				 sim <-- get state ;
 				 event_dim <-- event_array_size ;
 
-				 let step = {tret = t ; tout = t} in
-
-				 let ret = ida_solve sim.ida step ida_normal in
-		     
-				 let _ = check_flag "IDASolve" ret ;
-					 Printf.printf "Sim-time: %f\n%!" step.tret 
-				 in
-				 
-				 let rootsfound = Array.create event_dim 0 in
-
-				 _ <-- (if ret = ida_root_return then 					 
-					 let _ = check_flag "IDAGetRootInfo" (ida_get_root_info sim.ida rootsfound) in
-					 handle_root rootsfound 0 ;
-				       else
-					 return () );				 				 
-
 				 _ <-- reschedule sim.num_state.yy sim.num_state.yp ;
 
 				 reinit_needed <-- effects_exist ;
 
 				 _ <-- event_loop sim.num_state.yy sim.num_state.yp ;
 
-				 return (reinit_needed, step.tout)
+				 return (reinit_needed, t +. 0.1)
 			     )
 
   let init ({start; minstep} as exp) = 
@@ -166,9 +162,7 @@ module SundialsImpl : SimEngine = struct
 	let rtol = 0. in
 	let atol = 1.0e-3 in
 
-	(* Call IDACreate and IDAMalloc to initialize solution *)
-	let ida = ida_create () in
-	
+
 	unknowns <-- all_unknowns ;
 
 	let set_id = function 
@@ -180,15 +174,9 @@ module SundialsImpl : SimEngine = struct
 
 	let _ = Printf.printf "id: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array id)) in
 	
-	let _ = check_flag "IDASetId" (ida_set_id ida id) in
-	
-	event_dim <-- event_array_size ; 
-	
-	let ida_event_state = { e_t = 0.0; e_y = fvector dim ; e_yp = fvector dim ; e_gi = fvector event_dim } in
-	
 	event_roots <-- event_roots ;
 
-	let num_state = { t = start ; Ida.yy ; yp ; res } in
+	let num_state = { t = start ; yy ; yp ; res } in
 
 	let residual {t; yy; yp; res} = 
 	  yy.{0} <- t ; 
@@ -200,24 +188,7 @@ module SundialsImpl : SimEngine = struct
 	  event_roots e_y e_yp e_gi 
 	in
 
-	let ida_ctxt = { residual ; state = num_state ; event_roots ; event_state = ida_event_state } ;		     
-	in 
-	let _ =
-	  check_flag "IDAInit" (ida_init ida ida_ctxt) ;
-
-	  check_flag "IDASStolerances" (ida_ss_tolerances ida rtol atol);
-
-	  check_flag "IDADense" (ida_dense ida dim) ;
-	in
-
-	(* Call IDACalcIC to correct the initial values. *)
-
-	let _ = 
-	  Printf.printf "Initialization...\n%!";
-	  check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (start +. minstep)) ;
-	in
-
-	let sim = { ida ; num_state ; layout } in
+	let sim = { num_state ; layout } in
 
 	_ <-- put state sim  ;
 	

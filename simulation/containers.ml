@@ -45,7 +45,7 @@ class virtual sundials_container = object (self : 'a)
 
   val _sim_state : Sim.SundialsImpl.simulation_state option = None
 
-  method set_sim_state s = {< _sim_state = s >}
+  method set_sim_state s = {<  _sim_state = s >}
 
   method get_sim_state = _sim_state	
 

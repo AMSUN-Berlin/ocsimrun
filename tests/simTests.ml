@@ -45,14 +45,6 @@ let setup _ = (ref 0, new flat_state)
 let teardown _ =
   ()
 
-let test_every_step_sampling (r, s) = ignore (
-					  ( perform ( 
-						_ <-- add_event { signal=EveryStep ; effects = fun s -> (s, (r := !r + 1)) } ;
-						_ <-- SundialsImpl.simulate 
-							{ rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
-						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	
-					  )) s
-				   )
 
 let linear_sample_effect r = perform ( 
 					o <-- SundialsImpl.simulation_state;					
@@ -74,7 +66,7 @@ let test_linear_sampling (r, s) = ignore (
 
 
 let suite = "Test Core" >:::
-  ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
+  [
    "test_linear_sampling" >:: (bracket setup test_linear_sampling teardown) 
   ]
 
