@@ -60,6 +60,10 @@ let test_layout_invalidation s = ignore (
 				   )) s
 				 )
 
+let test_time_flattening s = ignore ( ( perform (
+				   layout <-- FlatLayout.flatten ;
+				   return (assert_equal ~msg:"flat time" ~printer:string_of_flat_unknown (LowState 0) (layout.flatten_unk time))
+			     ) ) s )
 
 let test_state_flattening s = ignore (
 				  ( perform ( 
@@ -77,6 +81,7 @@ let test_state_flattening s = ignore (
 let suite = "Test Core" >:::
   ["test_state_flattening" >:: (bracket setup test_state_flattening teardown) ;
    "test_layout_invalidation" >:: (bracket setup test_layout_invalidation teardown) ;
+   "test_time_flattening" >:: (bracket setup test_time_flattening teardown) ;
    "test_layout_validation" >:: (bracket setup test_layout_validation teardown)
   ]
 
