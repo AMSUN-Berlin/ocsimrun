@@ -75,10 +75,26 @@ let test_linear_sampling (r, s) = ignore (
 				      )) s
 				   )
 
+let relation_test r = perform (
+			  t <-- sim_value_of time ;
+			  return (r := !r + 1 ; assert_equal ~msg:"relation detection" ~printer:string_of_float 1. t) 
+			)
+
+let test_relation_detection (r,s) = ignore (
+					( perform ( 
+					      rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -1. ) ) ; sign = Gt } ;
+					      _ <-- add_event { signal=Relation(rel) ; effects = relation_test r } ;
+					      _ <-- SundialsImpl.simulate 
+						      { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
+					      return (assert_equal ~msg:"event invocations" ~printer:string_of_int 1 !r)	
+					)) s
+				      )
+
 
 
 let suite = "Test Core" >:::
   ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
+   "test_relation_detection" >:: (bracket setup test_relation_detection teardown) ;
    "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) 
   ]
 
