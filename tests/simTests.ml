@@ -90,11 +90,44 @@ let test_relation_detection (r,s) = ignore (
 					)) s
 				      )
 
+let set_discrete_value r u f = perform (
+				   _ <-- sim_set_value u f ;
+				   return (r := !r + 1) 
+			       )
 
+
+let assert_discrete_value r u f = perform (
+				      f' <-- sim_value_of u ;
+				      return (r := !r + 1 ; assert_equal ~msg:"discrete value" ~printer:string_of_float f' f) 
+				    )
+
+let test_discrete_value (r,s) = ignore (
+				    ( perform ( 
+					  x <-- new_unknown ;
+					  dx <-- new_unknown ;
+				      
+					  _ <-- add_equation (Linear( [| dx |] , [| 1. |], 0.)) ;
+					  
+					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -1. ) ) ; sign = Gt } ;
+					  _ <-- add_event { signal=Relation(rel) ; effects = assert_discrete_value r x 0. } ;
+
+					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -2. ) ) ; sign = Gt } ;
+					  _ <-- add_event { signal=Relation(rel) ; effects = set_discrete_value r x 42. } ;
+
+					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -3. ) ) ; sign = Gt } ;
+					  _ <-- add_event { signal=Relation(rel) ; effects = assert_discrete_value r x 42. } ;
+
+					  _ <-- SundialsImpl.simulate 
+						  { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
+
+					  return (assert_equal ~msg:"event invocations" ~printer:string_of_int 3 !r)	
+				    )) s
+			      )
 
 let suite = "Test Core" >:::
   ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
    "test_relation_detection" >:: (bracket setup test_relation_detection teardown) ;
+   "test_discrete_value" >:: (bracket setup test_discrete_value teardown) ;
    "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) 
   ]
 
