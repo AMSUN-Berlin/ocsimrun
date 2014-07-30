@@ -152,7 +152,7 @@ let flatten s = ( perform (
 		      
 		      let dimension = sn in
 		      
-		      let flatten_unk u = Printf.printf "searching unknown %s\n%!" (string_of_unknown u) ; UnknownMap.find u flat_us in
+		      let flatten_unk u = UnknownMap.find u flat_us in
 		      let flatten_eq = flatten_equation flat_us in
 		      let equalities = Array.of_enum (collect_equalities flat_us) in
 		      

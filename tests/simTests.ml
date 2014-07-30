@@ -50,17 +50,28 @@ let test_every_step_sampling (r, s) = ignore (
 						_ <-- add_event { signal=EveryStep ; effects = fun s -> (s, (r := !r + 1)) } ;
 						_ <-- SundialsImpl.simulate 
 							{ rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
-						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	
+						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 11 !r)	
 					  )) s
 				   )
+
+let setup_sample _ = (ref 0., new flat_state)
+
+let linear_sample_effect r = perform (
+				 osim <-- SundialsImpl.simulation_state ;
+				 return (
+				     (match osim with 
+					Some (sim) -> assert_equal ~msg:"event time" ~printer:string_of_float !r (SundialsImpl.compute_unknown sim time)
+				      | None -> assert_bool "no simulation state instance" false 
+				     ) ; (r := !r +. 1.) )
+			)
 
 let test_linear_sampling (r, s) = ignore (
 				      ( perform ( 
 					    clock <-- add_clock (LinearClock(1., 0.)) ;
-					    _ <-- add_event { signal=Clock(clock) ; effects = fun s -> (s, (r := !r + 1)) } ;
+					    _ <-- add_event { signal=Clock(clock) ; effects = linear_sample_effect r } ;
 					    _ <-- SundialsImpl.simulate 
 						    { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
-					    return (assert_equal ~msg:"event invocations" ~printer:string_of_int 10 !r)	
+					    return (assert_equal ~msg:"event invocations" ~printer:string_of_float 11. !r)	
 				      )) s
 				   )
 
@@ -68,7 +79,7 @@ let test_linear_sampling (r, s) = ignore (
 
 let suite = "Test Core" >:::
   ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
-   "test_linear_sampling" >:: (bracket setup test_linear_sampling teardown) 
+   "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) 
   ]
 
 let _ =

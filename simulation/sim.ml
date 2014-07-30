@@ -98,6 +98,7 @@ module SundialsImpl : SimEngine = struct
   let get_sim_state s = ( perform (
 			    o <-- get state ;
 			    match o with Some(sim) -> return sim 
+				       | None -> raise (Failure "No simulation state set-up!")
 			)) s 
 
   let rec handle_root gs i = if i < Array.length gs then (
@@ -227,11 +228,22 @@ module SundialsImpl : SimEngine = struct
 
 	let sim = { ida ; num_state ; layout } in
 
-	_ <-- set_sim_interface { value_of = compute_unknown sim ; set_value = update_unknown sim } ;
-	
 	_ <-- put state (Some sim)  ;
-	
+
 	_ <-- schedule_clocks yy yp ;
+
+	_ <-- reschedule sim.num_state.yy sim.num_state.yp ;
+	
+	reinit_needed <-- effects_exist ;
+
+	_ <-- event_loop sim.num_state.yy sim.num_state.yp ;
+
+	_ <-- if reinit_needed then
+		perform_reinit exp 
+	      else return () ;
+
+	_ <-- set_sim_interface { value_of = compute_unknown sim ; set_value = update_unknown sim } ;
+		
 
 	return 0
       )
