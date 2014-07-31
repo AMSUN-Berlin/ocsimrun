@@ -25,7 +25,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *)
-open E2lang
 
 type unknown = {
   u_idx : int; 
@@ -90,7 +89,7 @@ val start : float attribute -> ('r, unit) core_monad
 
 type equation = Equality of unknown * unknown  (** equality constraint, i.e. x = y *)
 	      | Linear of (unknown array) * (float array) * float  (** linear equation with constant coeffs *)
-	      | General of (unknown array) * (stmt array)  (** general, non-linear equation *)
+	      
 
 val current_dimension : ('r, int) core_monad
 

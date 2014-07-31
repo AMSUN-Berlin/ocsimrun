@@ -15,7 +15,7 @@ Library dae_modeling
   CompiledObject: best
   BuildTools: ocamlbuild
   Modules:    Monads, Core
-  BuildDepends: e2lang, bigarray, batteries, monad-custom
+  BuildDepends: bigarray, batteries, monad-custom
 
 Library dae_simulation
   Path:       simulation

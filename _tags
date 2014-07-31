@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: f7241e4148b6bc563f50657bbe8cc272)
+# DO NOT EDIT (digest: 386e32c12f11b7fcee63f172ae26f5ba)
 # Ignore VCS directories, you can use the same kind of rule outside
 # OASIS_START/STOP if you want to exclude directories that contains
 # useless stuff for the build process
@@ -17,7 +17,6 @@
 "modeling/dae_modeling.cmxs": use_dae_modeling
 <modeling/*.ml{,i}>: pkg_batteries
 <modeling/*.ml{,i}>: pkg_bigarray
-<modeling/*.ml{,i}>: pkg_e2lang
 <modeling/*.ml{,i}>: pkg_monad-custom
 # Library dae_simulation
 "simulation/dae_simulation.cmxs": use_dae_simulation
@@ -25,14 +24,12 @@
 <simulation/*.ml{,i}>: oasis_library_dae_simulation_native
 <simulation/*.ml{,i}>: pkg_batteries
 <simulation/*.ml{,i}>: pkg_bigarray
-<simulation/*.ml{,i}>: pkg_e2lang
 <simulation/*.ml{,i}>: pkg_monad-custom
 <simulation/*.ml{,i}>: pkg_pa_comprehension
 <simulation/*.ml{,i}>: use_dae_modeling
 # Executable simTests
 <tests/simTests.{native,byte}>: pkg_batteries
 <tests/simTests.{native,byte}>: pkg_bigarray
-<tests/simTests.{native,byte}>: pkg_e2lang
 <tests/simTests.{native,byte}>: pkg_monad-custom
 <tests/simTests.{native,byte}>: pkg_oUnit
 <tests/simTests.{native,byte}>: pkg_pa_comprehension
@@ -40,7 +37,6 @@
 <tests/simTests.{native,byte}>: use_dae_simulation
 <tests/*.ml{,i}>: pkg_batteries
 <tests/*.ml{,i}>: pkg_bigarray
-<tests/*.ml{,i}>: pkg_e2lang
 <tests/*.ml{,i}>: pkg_monad-custom
 <tests/*.ml{,i}>: pkg_oUnit
 <tests/*.ml{,i}>: pkg_pa_comprehension

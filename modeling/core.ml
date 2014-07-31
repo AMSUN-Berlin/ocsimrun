@@ -27,7 +27,6 @@
  *)
 
 open Batteries
-open E2lang
 open Lens
 
 (** an unknown is a entry of two dimensions: derivation and number*)
@@ -84,8 +83,7 @@ module ClockMap = IntMap
 (** Equations can be specialized *)
 type equation = Equality of unknown * unknown  (** equality constraint, i.e. x = y *)
 	      | Linear of (unknown array) * (float array) * float  (** linear equation with constant coeffs *)
-	      | General of (unknown array) * (stmt array)  (** general, non-linear equation *)
-
+	    
 type relation_sign = Lt | Gt
 
 type clock = LinearClock of float * float
@@ -314,7 +312,6 @@ let constant f = Linear([||], [||], f)
 
 let depends = function Equality(u1, u2)  -> UnknownSet.add u1 (UnknownSet.singleton u2)
 		     | Linear(us, _, _) -> Array.fold_right UnknownSet.add us UnknownSet.empty
-		     | General(us, _) -> Array.fold_right UnknownSet.add us UnknownSet.empty
 
 let empty_core_state () = {
   unknowns = UnknownState.empty () ;
