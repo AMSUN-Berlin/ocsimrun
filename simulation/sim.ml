@@ -135,8 +135,14 @@ module SundialsImpl : SimEngine = struct
 
 				 let _ = check_flag "IDASolve" ret ;
 					 Printf.printf "Sim-time: %f ret: %f\n%!" t' step.tret 
+
 				 in
 				 
+				 let _ = Printf.printf "yy: %s\nyp: %s\n" 
+						       (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yy)) 
+						       (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yp))
+				 in
+
 				 let rootsfound = Array.create event_dim 0 in
 
 				 _ <-- (if ret = ida_root_return then 					 
@@ -182,7 +188,7 @@ module SundialsImpl : SimEngine = struct
 
 	let set_id = function 
 	  | Algebraic _ | LowState _  -> ()
-	  | State(yy,yp) -> Printf.printf "id(%d %d / %d) <- 1.\n" yy yp dim ; id.{yp} <- 1.
+	  | State(yy,yp) -> id.{yp} <- 1.
 	  | Derivative i -> id.{i} <- 1. in     
 
 	let _ = id.{0} <- 1. ; Enum.iter (set_id % layout.flatten_unk) unknowns in
@@ -197,7 +203,7 @@ module SundialsImpl : SimEngine = struct
 	
 	event_roots <-- event_roots ;
 
-	let num_state = { t = start ; Ida.yy ; yp ; res } in
+	let num_state = { t = start ; Ida.yy = yy ; yp ; res } in
 
 	let residual {t; yy; yp; res} = 
 	  yy.{0} <- t ; 
@@ -208,6 +214,13 @@ module SundialsImpl : SimEngine = struct
 	  e_y.{0} <- e_t;
 	  event_roots e_y e_yp e_gi 
 	in
+
+	let sim = { ida ; num_state ; layout } in
+
+	(* apply the start values *)
+	svs <-- start_values ;
+
+	let _ = Enum.iter (fun (u,f) -> Printf.printf "%s starts at %f\n" (string_of_unknown u) f ; update_unknown sim u f) svs in
 
 	let ida_ctxt = { residual ; state = num_state ; event_roots ; event_state = ida_event_state } ;		     
 	in 
@@ -220,13 +233,15 @@ module SundialsImpl : SimEngine = struct
 	in
 
 	(* Call IDACalcIC to correct the initial values. *)
-
 	let _ = 
 	  Printf.printf "Initialization...\n%!";
 	  check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (start +. minstep)) ;
 	in
 
-	let sim = { ida ; num_state ; layout } in
+	let _ = Printf.printf "yy: %s\nyp: %s\n" 
+			      (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) 
+			      (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp))
+	in
 
 	_ <-- put state (Some sim)  ;
 
