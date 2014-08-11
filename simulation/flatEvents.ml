@@ -124,7 +124,7 @@ let collect_deps (stds, cds, rds) (eh,ev) =
 
 let effects_exist s = ( perform (
 			   so <-- get state ;
-			   return (match so with Some s -> s.effects = [] | None -> false)
+			   return (match so with Some s -> s.effects != [] | None -> false)
 		     ) ) s
 
 let is_valid s = perform (
