@@ -69,7 +69,7 @@ open Monads.ObjectStateMonad
 
 let rec fill_states u hd (dn, sn, fm) = function 
   (* only the 0-derivative is a plain flat state *)
-  | 0 ->  Printf.printf "Adding algebraic for unknown %d, at %d\n" u sn;  fill_states u hd (dn, sn+1, UnknownMap.add {u_idx=u; u_der=0} (LowState sn) fm) 1
+  | 0 ->  Printf.printf "Adding low state for unknown %d, at %d\n" u sn;  fill_states u hd (dn, sn+1, UnknownMap.add {u_idx=u; u_der=0} (LowState sn) fm) 1
 		     
   (* only the highest derivative is a plain flat derivative *) 
   | n when n = hd -> Printf.printf "Adding derivative for unknown %d, %d times diff at %d\n" u hd dn ; (dn+1, sn, UnknownMap.add {u_idx=u; u_der=n} (Derivative dn) fm)		       
@@ -133,11 +133,10 @@ let residual equalities eqs yy yp res =
 
   Array.iteri equality equalities ;
   
-  (*
-  Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
+  (*Printf.printf "yy: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) ;
   Printf.printf "yp: %s\n" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp)) ;
-  Printf.printf "residual: %s\n%!" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res));  *)
-  
+  Printf.printf "residual: %s\n%!" (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array res));*)
+   
   0
 
 let collect_equalities fus = [? (yy_index, yp_index) | State(yy_index, yp_index) <- UnknownMap.values fus ?]
