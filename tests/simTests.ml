@@ -40,7 +40,11 @@ class flat_state = object (self : 'a)
 end
 
 (* prepare a test state *)
-let setup _ = (ref 0, new flat_state)
+let setup _ = new flat_state
+
+let setup_counter _ = (ref 0, new flat_state)
+
+let setup_sample _ = (ref 0., new flat_state)
 
 let teardown _ =
   ()
@@ -53,8 +57,6 @@ let test_every_step_sampling (r, s) = ignore (
 						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 11 !r)	
 					  )) s
 				   )
-
-let setup_sample _ = (ref 0., new flat_state)
 
 let linear_sample_effect r = perform (
 				 osim <-- SundialsImpl.simulation_state ;
@@ -98,13 +100,13 @@ let set_discrete_value r u f = perform (
 
 let assert_discrete_value r u f = perform (
 				      f' <-- sim_value_of u ;
-				      return (r := !r + 1 ; assert_equal ~msg:"discrete value" ~printer:string_of_float f' f) 
+				      return (r := !r + 1 ; assert_equal ~msg:"discrete value" ~printer:string_of_float f f') 
 				    )
 
 let test_discrete_value (r,s) = ignore (
 				    ( perform ( 
 					  x <-- new_unknown ;
-					  dx <-- new_unknown ;
+					  dx <-- der x ;
 				      
 					  _ <-- add_equation (Linear( [| dx |] , [| 1. |], 0.)) ;
 					  
@@ -124,11 +126,26 @@ let test_discrete_value (r,s) = ignore (
 				    )) s
 			      )
 
+let test_start_value s = ignore ( ( perform (
+			       x <-- new_unknown ;
+			       dx <-- der x ;
+
+			       _ <-- add_equation (Linear( [| dx |] , [| 1. |], 0.)) ;
+
+			       _ <-- start (x, 10.) ;
+			       _ <-- SundialsImpl.simulate 
+				       { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
+
+			       x' <-- sim_value_of x;
+			       return (assert_equal ~msg:"simulated_value" ~printer:string_of_float 10. x')
+			 ) ) s )
+
 let suite = "Test Core" >:::
-  ["test_every_step_sampling" >:: (bracket setup test_every_step_sampling teardown) ;
-   "test_relation_detection" >:: (bracket setup test_relation_detection teardown) ;
-   "test_discrete_value" >:: (bracket setup test_discrete_value teardown) ;
-   "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) 
+  ["test_every_step_sampling" >:: (bracket setup_counter test_every_step_sampling teardown) ;
+   "test_relation_detection" >:: (bracket setup_counter test_relation_detection teardown) ;
+   "test_discrete_value" >:: (bracket setup_counter test_discrete_value teardown) ;
+   "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) ;
+   "test_start_value" >:: (bracket setup test_start_value teardown) ;
   ]
 
 let _ =
