@@ -156,6 +156,7 @@ type signal = Or of signal * signal
 
 type 'r event = {
   signal : signal ;
+  requires_reinit : bool;
   effects : ('r, unit) core_monad;
 }
 constraint 'r = 'r state_trait

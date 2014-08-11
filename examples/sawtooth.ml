@@ -42,6 +42,7 @@ let sawtooth out s = (
 
       let x_observe = {
 	signal = EveryStep ;
+	requires_reinit = false;
 	effects = perform ( 
 		      vals <-- sim_values_of [ time; x ] ;
 		      return (ignore (write_entry out vals) );
@@ -54,6 +55,7 @@ let sawtooth out s = (
 
       let reinit = {
 	signal = Relation top ;
+	requires_reinit = true;
 	effects = sim_set_value x 1. ;
       } in
       

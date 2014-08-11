@@ -48,6 +48,7 @@ let bounce_ball out =
 
       let h_observe = {
 	signal = EveryStep ;
+	requires_reinit = false;
 	effects = perform ( 
 		      t_ <-- sim_value_of time ;
 		      v_ <-- sim_value_of v;
@@ -64,6 +65,7 @@ let bounce_ball out =
 
       let bounce = {
 	signal = Relation contact ;
+	requires_reinit = true;
 	effects = perform ( 
 		      vn_ <-- sim_value_of v_next ;
 		      _ <-- sim_set_value v vn_ ;		      

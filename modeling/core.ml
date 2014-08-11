@@ -133,9 +133,11 @@ module Sim = struct
 			)
 end
 
+
 type 'r event = {
   signal : signal ;
-  effects : ('r, unit) core_monad ;
+  requires_reinit : bool;
+  effects : ('r, unit) core_monad;
 }
 constraint 'r = < get_core : 'r core_state_t ; set_core : 'r core_state_t -> 'r ; ..>
 

@@ -51,7 +51,7 @@ let teardown _ =
 
 let test_every_step_sampling (r, s) = ignore (
 					  ( perform ( 
-						_ <-- add_event { signal=EveryStep ; effects = fun s -> (s, (r := !r + 1)) } ;
+						_ <-- add_event { signal=EveryStep ; requires_reinit=false; effects = fun s -> (s, (r := !r + 1)) } ;
 						_ <-- SundialsImpl.simulate 
 							{ rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
 						return (assert_equal ~msg:"event invocations" ~printer:string_of_int 11 !r)	
@@ -70,7 +70,7 @@ let linear_sample_effect r = perform (
 let test_linear_sampling (r, s) = ignore (
 				      ( perform ( 
 					    clock <-- add_clock (LinearClock(1., 0.)) ;
-					    _ <-- add_event { signal=Clock(clock) ; effects = linear_sample_effect r } ;
+					    _ <-- add_event { signal=Clock(clock) ; requires_reinit=false; effects = linear_sample_effect r } ;
 					    _ <-- SundialsImpl.simulate 
 						    { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
 					    return (assert_equal ~msg:"event invocations" ~printer:string_of_float 11. !r)	
@@ -85,7 +85,7 @@ let relation_test r = perform (
 let test_relation_detection (r,s) = ignore (
 					( perform ( 
 					      rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -1. ) ) ; sign = Gt } ;
-					      _ <-- add_event { signal=Relation(rel) ; effects = relation_test r } ;
+					      _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = relation_test r } ;
 					      _ <-- SundialsImpl.simulate 
 						      { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
 					      return (assert_equal ~msg:"event invocations" ~printer:string_of_int 1 !r)	
@@ -111,13 +111,13 @@ let test_discrete_value (r,s) = ignore (
 					  _ <-- add_equation (Linear( [| dx |] , [| 1. |], 0.)) ;
 					  
 					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -1. ) ) ; sign = Gt } ;
-					  _ <-- add_event { signal=Relation(rel) ; effects = assert_discrete_value r x 0. } ;
+					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = assert_discrete_value r x 0. } ;
 
 					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -2. ) ) ; sign = Gt } ;
-					  _ <-- add_event { signal=Relation(rel) ; effects = set_discrete_value r x 42. } ;
+					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = set_discrete_value r x 42. } ;
 
 					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -3. ) ) ; sign = Gt } ;
-					  _ <-- add_event { signal=Relation(rel) ; effects = assert_discrete_value r x 42. } ;
+					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = assert_discrete_value r x 42. } ;
 
 					  _ <-- SundialsImpl.simulate 
 						  { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;

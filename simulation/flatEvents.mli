@@ -60,11 +60,11 @@ val event_roots : ('r, event_roots) event_state_monad
 
 val event_array_size : ('r, int) event_state_monad
 
-val root_found : int -> relation_sign -> ('r, unit) event_state_monad 
+val root_found : int -> relation_sign -> ('r, bool) event_state_monad 
 
 val reset_roots : fvector -> fvector -> ('r, unit) event_state_monad 
 
-val event_loop : fvector -> fvector -> ('r, unit) event_state_monad
+val event_loop : fvector -> fvector -> ('r, bool) event_state_monad
 
 val next_clock : ('r, float option) event_state_monad 
 
@@ -72,5 +72,5 @@ val schedule : fvector -> fvector -> clock_handle -> ('r, unit) event_state_mona
 
 val schedule_clocks : fvector -> fvector -> ('r, unit) event_state_monad
 
-val reschedule : fvector -> fvector -> ('r, unit) event_state_monad 
+val reschedule : fvector -> fvector -> ('r, bool) event_state_monad 
 

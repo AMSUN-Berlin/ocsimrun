@@ -231,17 +231,17 @@ let rec eval src index rel_state = function
 let rec event_loop yy yp = perform (
 			   es <-- event_state ;
 			   match es.effects with
-			     [] -> return () ;
-			   | effects -> (seq effects) &. ((put state (Some {es with effects=[]})) &. event_loop yy yp)
+			     [] -> return false ;
+			   | effects -> ((put state (Some {es with effects=[]})) &. (seq effects) &. event_loop yy yp)
 			 )
 
-let collect_effects mem idx src eh effects = perform (
+let collect_effects mem idx src eh (reinit, effects) = perform (
 						 o <-- get_event eh ;
 						 match o with Some ev ->
 							      let (v, c) = eval src idx mem ev.signal in
-							      if (v && c) then return (ev.Core.effects :: effects)
-							      else return effects 
-							    | _ -> return effects
+							      if (v && c) then return (reinit || ev.requires_reinit, ev.Core.effects :: effects)
+							      else return (reinit, effects) 
+							    | _ -> return (reinit, effects)
 					       )
 
 let root_found i sign = perform (
@@ -252,10 +252,10 @@ let root_found i sign = perform (
 			    let v = sign = rel.sign in
 			    let src = SigRel(i, v) in
 			    let deps = (EvSet.enum (RelMap.find rh es.dependencies.on_relations)) in
-			    effects <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;
+			    (reinit, effects) <-- fold_enum (collect_effects es.memory rel_index src) (false, es.effects) deps ;
 			    let _ = BitSet.put es.memory v i in
 			    _ <-- put state (Some { es with effects = effects });
-			    return ()
+			    return reinit
 			  )
 
 let event_array_size s = ( perform (
@@ -323,8 +323,8 @@ let fire_step es yy yp = perform (
 			     let src = SigStep in
 			     let rel_index rh = RelMap.find rh es.relation_indices in
 
-			     effects' <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;			      
-			     return effects'
+			     (reinit, effects') <-- fold_enum (collect_effects es.memory rel_index src) (false, es.effects) deps ;			      
+			     return (reinit, effects')
 			)
 			  
 let fire_clock yy yp ch = perform (
@@ -333,23 +333,26 @@ let fire_clock yy yp ch = perform (
 			      let src = SigClock(ch) in
 			      let rel_index rh = RelMap.find rh es.relation_indices in
 
-			      effects' <-- fold_enum (collect_effects es.memory rel_index src) es.effects deps ;			      
+			      (reinit, effects') <-- fold_enum (collect_effects es.memory rel_index src) (false, es.effects) deps ;			      
 			      _ <-- schedule yy yp ch ;
 			      es <-- event_state ;
-			      put state (Some {es with effects = effects'})
+			      put state (Some {es with effects = effects'}) ;
+			      return reinit
 			    )
 
 let rec fire_clocks yy yp = function 
-    [] -> return ()
+    [] -> return false
   | ch :: clocks -> perform (
-			_ <-- fire_clock yy yp ch ;
-			fire_clocks yy yp clocks ;
+			reinit <-- fire_clock yy yp ch ;
+			reinit' <-- fire_clocks yy yp clocks ;
+			return (reinit || reinit')
 		      )
 			    
 let reschedule yy yp = perform (
 			   es <-- event_state ;
-			   effects' <-- fire_step es yy yp;
+			   (reinit, effects') <-- fire_step es yy yp;
 			   let (queue', active_clocks) = advance_queue yy.{0} es.queue [] in
 			   _ <-- put state (Some {es with queue = queue' ; effects = effects'}) ;
-			   fire_clocks yy yp active_clocks ;
+			   reinit' <-- fire_clocks yy yp active_clocks ;
+			   return (reinit || reinit')
 			 )

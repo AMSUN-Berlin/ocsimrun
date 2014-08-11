@@ -103,10 +103,18 @@ module SundialsImpl : SimEngine = struct
 
   let rec handle_root gs i = if i < Array.length gs then (
 			       match gs.(i) with
-				 1 -> root_found i Gt &. handle_root gs (i+1)
-			       | -1 -> root_found i Lt &. handle_root gs (i+1)
+				 1 -> perform (
+					  reinit <-- root_found i Gt ;
+					  reinit' <-- handle_root gs (i+1) ;
+					  return (reinit || reinit')
+					)
+			       | -1 -> perform (
+					  reinit <-- root_found i Lt ;
+					  reinit' <-- handle_root gs (i+1) ;
+					  return (reinit || reinit')
+					)
 			       | 0 -> handle_root gs (i+1)
-			     ) else return ()
+			     ) else return false
 
   let perform_reinit {start;minstep} = perform (
 					   sim <-- get_sim_state ;					   
@@ -120,6 +128,11 @@ module SundialsImpl : SimEngine = struct
 				 
 					   let _ = check_flag "IDAReInit" (ida_reinit sim.ida start (ida_get_ctxt sim.ida)) ; 
 						   check_flag "IDACalcIC" (ida_calc_ic sim.ida ida_ya_ydp_init (start +. minstep)) in												
+
+					   (*let _ = Printf.printf "yy: %s\nyp: %s\n" 
+								 (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yy)) 
+								 (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yp))
+					   in*)
 					   return ()
 					 )
 	 
@@ -131,33 +144,21 @@ module SundialsImpl : SimEngine = struct
 
 				 let ret = ida_solve sim.ida step ida_normal in
 		     
-				 let t' = compute_unknown sim time in
-
-				 let _ = check_flag "IDASolve" ret ;
-					 Printf.printf "Sim-time: %f ret: %f\n%!" t' step.tret 
-
-				 in
-				 
-				 let _ = Printf.printf "yy: %s\nyp: %s\n" 
-						       (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yy)) 
-						       (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array sim.num_state.yp))
-				 in
+				 let _ = check_flag "IDASolve" ret in				 
 
 				 let rootsfound = Array.create event_dim 0 in
 
-				 _ <-- (if ret = ida_root_return then 					 
-					 let _ = check_flag "IDAGetRootInfo" (ida_get_root_info sim.ida rootsfound) in
-					 handle_root rootsfound 0 ;
-				       else
-					 return () );				 				 
+				 reinit <-- (if ret = ida_root_return then 					 
+					       let _ = check_flag "IDAGetRootInfo" (ida_get_root_info sim.ida rootsfound) in
+					       handle_root rootsfound 0 ;
+					     else
+					       return false );				 				 
 
-				 _ <-- reschedule sim.num_state.yy sim.num_state.yp ;
+				 reinit' <-- reschedule sim.num_state.yy sim.num_state.yp ;
 
-				 reinit_needed <-- effects_exist ;
+				 reinit'' <-- event_loop sim.num_state.yy sim.num_state.yp ;				 
 
-				 _ <-- event_loop sim.num_state.yy sim.num_state.yp ;
-
-				 return (reinit_needed, step.tout)
+				 return (reinit || reinit' || reinit'', step.tret)
 			     )
 
   let init ({start; minstep} as exp) = 
@@ -238,11 +239,6 @@ module SundialsImpl : SimEngine = struct
 	  check_flag "IDACalcIC" (ida_calc_ic ida ida_ya_ydp_init (start +. minstep)) ;
 	in
 
-	let _ = Printf.printf "yy: %s\nyp: %s\n" 
-			      (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yy)) 
-			      (IO.to_string (Array.print Float.print) (Bigarray.Array1.to_array yp))
-	in
-
 	_ <-- put state (Some sim)  ;
 
 	_ <-- schedule_clocks yy yp ;
@@ -267,12 +263,16 @@ module SundialsImpl : SimEngine = struct
   let rec sim_loop ({start; minstep; stop} as exp) = 
     perform (			     
 	(reinit, t') <-- perform_step (start +. minstep) ;
+	let _ = Printf.printf "Starting at %f, reached %f\n" start t' in					 
 	
-	_ <-- if reinit then perform_reinit exp else return () ;
+	let exp' = {exp with start = t'} in
 
-	if t' < stop then
-	  sim_loop {exp with start=t'}
-	else
+	_ <-- if reinit then perform_reinit exp' else return () ;
+
+	if t' < stop then (
+	  Printf.printf "Stepping to %f\n" t' ;
+	  sim_loop exp'
+	) else
 	  return t'
       )
 	    
