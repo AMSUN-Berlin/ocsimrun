@@ -114,7 +114,7 @@ let test_discrete_value (r,s) = ignore (
 					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = assert_discrete_value r x 0. } ;
 
 					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -2. ) ) ; sign = Gt } ;
-					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = set_discrete_value r x 42. } ;
+					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=true; effects = set_discrete_value r x 42. } ;
 
 					  rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -3. ) ) ; sign = Gt } ;
 					  _ <-- add_event { signal=Relation(rel) ; requires_reinit=false; effects = assert_discrete_value r x 42. } ;
@@ -140,12 +140,43 @@ let test_start_value s = ignore ( ( perform (
 			       return (assert_equal ~msg:"simulated_value" ~printer:string_of_float 10. x')
 			 ) ) s )
 
+let test_event_loop s = ignore ( ( perform (
+				       (* der(x) = 0 *)
+				       x <-- new_unknown ;
+				       dx <-- der x;
+				       _ <-- add_equation (Linear( [| dx |] , [| 1. |], 0.)) ;
+
+				       (* der(y) = 0 *)
+				       y <-- new_unknown ;
+				       dy <-- der y;
+				       _ <-- add_equation (Linear( [| dy |] , [| 1. |], 0.)) ;
+				       
+				       (* when time > 0.5 then reinit(x, 2.) end when *)
+				       rel <-- add_relation { base_rel = (Linear ( [| time |], [|1.|],  -0.5 ) ) ; sign = Gt } ;
+				       _ <-- add_event { signal=Relation(rel) ; requires_reinit=true; effects = sim_set_value x 2. } ;
+
+				       (* when time > 0.5 then reinit(x, 2.) end when *)
+				       rel <-- add_relation { base_rel = (Linear ( [| x |], [|1.|],  -1.0 ) ) ; sign = Gt } ;
+				       _ <-- add_event { signal=Relation(rel) ; requires_reinit=true; effects = sim_set_value y 1. } ;
+				       
+				       _ <-- SundialsImpl.simulate 
+					       { rtol = 0. ; atol = 10e-6 ; minstep = 1. ; start = 0. ; stop = 10. } ;
+
+				       x' <-- sim_value_of x;
+				       y' <-- sim_value_of y;
+
+				       return (assert_equal ~msg:"direct event value" ~printer:string_of_float 2. x' ; 
+					       assert_equal ~msg:"indirect event value" ~printer:string_of_float 1. y' 
+					      )
+				 ) ) s )
+
 let suite = "Test Core" >:::
   ["test_every_step_sampling" >:: (bracket setup_counter test_every_step_sampling teardown) ;
    "test_relation_detection" >:: (bracket setup_counter test_relation_detection teardown) ;
    "test_discrete_value" >:: (bracket setup_counter test_discrete_value teardown) ;
    "test_linear_sampling" >:: (bracket setup_sample test_linear_sampling teardown) ;
    "test_start_value" >:: (bracket setup test_start_value teardown) ;
+   "test_event_loop" >:: (bracket setup test_event_loop teardown) ;
   ]
 
 let _ =
