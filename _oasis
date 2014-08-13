@@ -22,14 +22,14 @@ Library dae_modeling
   CompiledObject: best
   BuildTools: ocamlbuild
   Modules:    Monads, Core
-  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, lwt.unix, daestruct
+  BuildDepends: e2lang, bigarray, batteries, monad-custom, dae_output, daestruct
 
 Library dae_simulation
   Path:       simulation
   CompiledObject: best
   BuildTools: ocamlbuild
-  Modules:    Sim, FlatLayout, FlatEvents, Controlled, Commands_j, Commands_t, Containers
-  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension, lwt.syntax, atdgen
+  Modules:    Sim, FlatLayout, FlatEvents, Containers
+  BuildDepends: dae_modeling, bigarray, batteries, sundials_ml, pa_comprehension
   NativeOpt: -g
 
 Library dae_examples
@@ -84,6 +84,25 @@ Executable flatteningTests
   Build$: flag(tests)  
   BuildDepends: dae_modeling, oUnit, dae_simulation
   BuildTools: ocamlbuild
+
+Executable ooTests
+  Path: tests
+  CompiledObject: best
+  MainIs: ooTests.ml
+  Install: false
+  Build$: flag(tests)  
+  BuildDepends: dae_modeling, oUnit, dae_simulation
+  BuildTools: ocamlbuild
+
+Executable simTests
+  Path: tests
+  CompiledObject: best
+  MainIs: simTests.ml
+  Install: false
+  Build$: flag(tests)  
+  BuildDepends: dae_modeling, oUnit, dae_simulation
+  BuildTools: ocamlbuild
+
 
 Test core
   Type: custom (0.3)
